@@ -1,5 +1,6 @@
 import { SignInForm } from "@/app/auth/signin-form"
 import Link from "next/link"
+import { Suspense } from "react"
 
 export default function SignInPage() {
     return (
@@ -13,7 +14,19 @@ export default function SignInPage() {
                         ← Back to home
                     </Link>
                 </div>
-                <SignInForm />
+                <Suspense
+                    fallback={
+                        <div className="w-full max-w-md rounded-3xl border border-border bg-card/80 p-5 shadow-lg backdrop-blur sm:p-6 md:p-7">
+                            <div className="mb-4 text-center sm:mb-5">
+                                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-primary sm:text-xs">Welcome back</p>
+                                <h1 className="text-lg font-bold text-foreground sm:text-xl md:text-2xl">Sign in to Briefly</h1>
+                                <p className="mt-2 text-sm text-muted-foreground">Loading...</p>
+                            </div>
+                        </div>
+                    }
+                >
+                    <SignInForm />
+                </Suspense>
             </div>
         </div>
     )
