@@ -50,8 +50,8 @@ export default function ProfilePage() {
 
         try {
             const response = await apiClient.updateProfile({
-                name: editedName.trim() || null,
-                avatar: editedAvatar.trim() || null,
+                name: editedName.trim() || undefined,
+                avatar: editedAvatar.trim() || undefined,
             })
 
             if (response.success && response.data) {
