@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiClient } from "@/lib/api"
 import { BookOpen, Check, ChevronDown, Clock, Copy, Download, FileText, History, Loader2, Plus, Sparkles, Upload, X } from "lucide-react"
-import mammoth from "mammoth"
-import * as pdfjsLib from "pdfjs-dist"
 import { useEffect, useRef, useState } from "react"
 
 const STORAGE_KEY = "briefly_study_guide_history"
@@ -19,10 +17,7 @@ interface StudyGuideHistory {
     createdAt: string
 }
 
-// Set PDF.js worker - configured dynamically in extraction function to handle CDN fallbacks
-if (typeof window !== "undefined") {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = ""
-}
+// PDF.js, Mammoth, and jsPDF are imported dynamically to avoid SSR issues with browser APIs
 
 export default function StudyGuidePage() {
     const [content, setContent] = useState("")
@@ -125,8 +120,10 @@ export default function StudyGuidePage() {
 
     const extractTextFromWord = async (file: File): Promise<string> => {
         try {
+            // Dynamically import mammoth only when needed (client-side only)
+            const mammoth = await import("mammoth")
             const arrayBuffer = await file.arrayBuffer()
-            const result = await mammoth.extractRawText({ arrayBuffer })
+            const result = await mammoth.default.extractRawText({ arrayBuffer })
             
             if (result.messages && result.messages.length > 0) {
                 console.warn("Word document warnings:", result.messages)

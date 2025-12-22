@@ -74,6 +74,8 @@ export default function SummarizerPage() {
     }, [isHistoryOpen])
 
     const extractTextFromPDF = async (file: File): Promise<string> => {
+        // Dynamically import pdfjs-dist only when needed (client-side only)
+        const pdfjsLib = await import("pdfjs-dist")
         const arrayBuffer = await file.arrayBuffer()
         
         // Try to use local worker first, then fallback to CDNs
