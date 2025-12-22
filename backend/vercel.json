@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "ignore": [
-    "frontend/**"
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
