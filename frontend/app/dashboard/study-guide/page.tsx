@@ -4,7 +4,6 @@ import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiClient } from "@/lib/api"
-import { jsPDF } from "jspdf"
 import { BookOpen, Check, ChevronDown, Clock, Copy, Download, FileText, History, Loader2, Plus, Sparkles, Upload, X } from "lucide-react"
 import mammoth from "mammoth"
 import * as pdfjsLib from "pdfjs-dist"
@@ -76,6 +75,8 @@ export default function StudyGuidePage() {
     }, [isHistoryOpen])
 
     const extractTextFromPDF = async (file: File): Promise<string> => {
+        // Dynamically import pdfjs-dist only when needed (client-side only)
+        const pdfjsLib = await import("pdfjs-dist")
         const arrayBuffer = await file.arrayBuffer()
         
         // Try to use local worker first, then fallback to CDNs
@@ -286,9 +287,12 @@ export default function StudyGuidePage() {
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (!studyGuide) return
 
+        // Dynamically import jsPDF only when needed (client-side only)
+        const jsPDFModule = await import("jspdf")
+        const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default
         const doc = new jsPDF()
         const pageWidth = doc.internal.pageSize.getWidth()
         const pageHeight = doc.internal.pageSize.getHeight()

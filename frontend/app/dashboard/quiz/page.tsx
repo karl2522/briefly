@@ -5,15 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiClient } from "@/lib/api"
 import { BookOpen, Calendar, ChevronRight, FileText, Loader2, Sparkles, Target, Upload, X } from "lucide-react"
-import mammoth from "mammoth"
 import { useRouter } from "next/navigation"
-import * as pdfjsLib from "pdfjs-dist"
 import { useEffect, useRef, useState } from "react"
 
-// Set PDF.js worker - configured dynamically in extraction function to handle CDN fallbacks
-if (typeof window !== "undefined") {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = ""
-}
+// PDF.js and Mammoth are imported dynamically to avoid SSR issues with browser APIs
 
 interface QuizQuestion {
     question: string
@@ -61,6 +56,8 @@ export default function QuizPage() {
     }, [])
 
     const extractTextFromPDF = async (file: File): Promise<string> => {
+        // Dynamically import pdfjs-dist only when needed (client-side only)
+        const pdfjsLib = await import("pdfjs-dist")
         const arrayBuffer = await file.arrayBuffer()
         
         // Try to use local worker first, then fallback to CDNs
@@ -109,8 +106,10 @@ export default function QuizPage() {
 
     const extractTextFromWord = async (file: File): Promise<string> => {
         try {
+            // Dynamically import mammoth only when needed (client-side only)
+            const mammoth = await import("mammoth")
             const arrayBuffer = await file.arrayBuffer()
-            const result = await mammoth.extractRawText({ arrayBuffer })
+            const result = await mammoth.default.extractRawText({ arrayBuffer })
             
             if (result.messages && result.messages.length > 0) {
                 console.warn("Word document warnings:", result.messages)
