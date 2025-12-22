@@ -1,4 +1,5 @@
 import { Controller, Get, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import * as crypto from 'crypto';
 import type { Response } from 'express';
 import { AppService } from './app.service';
@@ -16,6 +17,7 @@ export class AppController {
 
   @Public()
   @Get('csrf-token')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   getCsrfToken(@Res() res: Response) {
     // Generate CSRF token
     const csrfToken = crypto.randomBytes(32).toString('hex');

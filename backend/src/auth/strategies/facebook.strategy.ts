@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile, Strategy } from 'passport-facebook';
+import { sanitizeName } from '../../common/utils/sanitize.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -38,11 +39,32 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
     const { id, name, emails, photos } = profile;
     const email = emails?.[0]?.value;
     // Facebook profile name structure: { givenName, familyName, middleName }
-    const displayName = name ? `${name.givenName || ''} ${name.familyName || ''}`.trim() || null : null;
-    const photo = photos?.[0]?.value || null;
+    const rawDisplayName = name ? `${name.givenName || ''} ${name.familyName || ''}`.trim() || null : null;
+    const rawPhoto = photos?.[0]?.value || null;
 
     if (!email) {
       return done(new Error('No email found in Facebook profile'), false);
+    }
+
+    // Sanitize OAuth profile data before storing
+    const displayName = rawDisplayName ? sanitizeName(rawDisplayName) : null;
+    // Validate and sanitize avatar URL
+    let photo: string | null = null;
+    if (rawPhoto) {
+      try {
+        // Validate URL format
+        const url = new URL(rawPhoto);
+        // Only allow http/https protocols
+        if (url.protocol === 'http:' || url.protocol === 'https:') {
+          // Limit URL length
+          if (rawPhoto.length <= 500) {
+            photo = rawPhoto;
+          }
+        }
+      } catch (e) {
+        // Invalid URL, skip avatar
+        photo = null;
+      }
     }
 
     try {

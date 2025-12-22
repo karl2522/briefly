@@ -1,6 +1,7 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -10,16 +11,25 @@ export class UsersController {
 
   @Get('me')
   async getCurrentUser(@CurrentUser() user: any) {
-    // User is already validated by JWT guard and includes all needed fields
-    // The JWT strategy now returns createdAt and updatedAt
+    // Fetch full user data including OAuth providers
+    const fullUser = await this.usersService.findById(user.id);
+    const userWithProviders = await this.usersService.getUserWithProviders(user.id);
+    
     return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      id: fullUser.id,
+      email: fullUser.email,
+      name: fullUser.name,
+      avatar: fullUser.avatar,
+      createdAt: fullUser.createdAt,
+      updatedAt: fullUser.updatedAt,
+      canEditProfile: !!(userWithProviders.googleId || userWithProviders.facebookId),
+      provider: userWithProviders.googleId ? 'google' : userWithProviders.facebookId ? 'facebook' : 'email',
     };
+  }
+
+  @Patch('me')
+  async updateProfile(@CurrentUser() user: any, @Body() updateDto: UpdateUserDto) {
+    return this.usersService.updateProfile(user.id, updateDto);
   }
 }
 

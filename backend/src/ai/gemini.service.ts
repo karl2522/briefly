@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { sanitizeAiContent, sanitizeTopic } from '../common/utils/sanitize.util';
 
 @Injectable()
 export class GeminiService {
@@ -50,13 +51,26 @@ export class GeminiService {
 
   /**
    * List available models from the API
+   * Uses header-based authentication instead of query parameter to prevent API key exposure
    */
   private async listAvailableModels(): Promise<string[]> {
     try {
       const apiKey = this.configService.get<string>('GEMINI_API_KEY');
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+        'https://generativelanguage.googleapis.com/v1beta/models',
+        {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': apiKey || '',
+          },
+        },
       );
+      
+      if (!response.ok) {
+        this.logger.warn(`Failed to list models: ${response.status} ${response.statusText}`);
+        return [];
+      }
+      
       const data = await response.json();
       if (data.models && Array.isArray(data.models)) {
         return data.models
@@ -127,12 +141,16 @@ export class GeminiService {
    * Generate flashcards from text
    */
   async generateFlashcards(text: string, topic?: string): Promise<any[]> {
-    const prompt = `Generate flashcards from the following text${topic ? ` about ${topic}` : ''}. 
+    // Sanitize inputs to prevent prompt injection
+    const sanitizedText = sanitizeAiContent(text);
+    const sanitizedTopic = topic ? sanitizeTopic(topic) : undefined;
+
+    const prompt = `Generate flashcards from the following text${sanitizedTopic ? ` about ${sanitizedTopic}` : ''}. 
 Return a JSON array with objects containing "question" and "answer" fields. 
 Make the questions clear and the answers concise but informative.
 
 Text:
-${text}
+${sanitizedText}
 
 Return only valid JSON array, no markdown formatting or additional text.`;
 
@@ -143,14 +161,26 @@ Return only valid JSON array, no markdown formatting or additional text.`;
         return response.text();
       });
 
+      // Sanitize AI response before parsing
+      const sanitizedResponse = sanitizeAiContent(textResponse);
+
       // Try to extract JSON from the response
-      const jsonMatch = textResponse.match(/\[[\s\S]*\]/);
+      const jsonMatch = sanitizedResponse.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Validate that parsed data is an array
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
       }
 
       // Fallback: try to parse the entire response
-      return JSON.parse(textResponse);
+      const parsed = JSON.parse(sanitizedResponse);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      throw new Error('Invalid response format from AI');
     } catch (error) {
       this.logger.error('Error generating flashcards', error);
       throw new Error('Failed to generate flashcards');
@@ -161,6 +191,9 @@ Return only valid JSON array, no markdown formatting or additional text.`;
    * Summarize text
    */
   async summarizeText(text: string, length: 'short' | 'medium' | 'long' = 'medium'): Promise<string> {
+    // Sanitize input to prevent prompt injection
+    const sanitizedText = sanitizeAiContent(text);
+
     const lengthInstructions = {
       short: 'in 2-3 sentences',
       medium: 'in a concise paragraph',
@@ -169,16 +202,19 @@ Return only valid JSON array, no markdown formatting or additional text.`;
 
     const prompt = `Summarize the following text ${lengthInstructions[length]}:
 
-${text}
+${sanitizedText}
 
 Provide a clear and concise summary:`;
 
     try {
-      return await this.executeWithFallback(async () => {
+      const summary = await this.executeWithFallback(async () => {
         const result = await this.model.generateContent(prompt);
         const response = await result.response;
         return response.text();
       });
+
+      // Sanitize AI response before returning
+      return sanitizeAiContent(summary);
     } catch (error) {
       this.logger.error('Error summarizing text', error);
       throw new Error('Failed to summarize text');
@@ -189,20 +225,27 @@ Provide a clear and concise summary:`;
    * Generate study guide
    */
   async generateStudyGuide(content: string, subject?: string): Promise<string> {
-    const prompt = `Create a comprehensive study guide${subject ? ` for ${subject}` : ''} from the following content. 
+    // Sanitize inputs to prevent prompt injection
+    const sanitizedContent = sanitizeAiContent(content);
+    const sanitizedSubject = subject ? sanitizeTopic(subject) : undefined;
+
+    const prompt = `Create a comprehensive study guide${sanitizedSubject ? ` for ${sanitizedSubject}` : ''} from the following content. 
 Organize it into clear sections with headings, key concepts, important points, and examples.
 
 Content:
-${content}
+${sanitizedContent}
 
 Format the study guide with clear sections and bullet points:`;
 
     try {
-      return await this.executeWithFallback(async () => {
+      const studyGuide = await this.executeWithFallback(async () => {
         const result = await this.model.generateContent(prompt);
         const response = await result.response;
         return response.text();
       });
+
+      // Sanitize AI response before returning
+      return sanitizeAiContent(studyGuide);
     } catch (error) {
       this.logger.error('Error generating study guide', error);
       throw new Error('Failed to generate study guide');
@@ -217,11 +260,16 @@ Format the study guide with clear sections and bullet points:`;
     numberOfQuestions: number = 5,
     difficulty: 'easy' | 'medium' | 'hard' = 'medium',
   ): Promise<any[]> {
-    const prompt = `Generate ${numberOfQuestions} ${difficulty} quiz questions from the following content.
+    // Sanitize input to prevent prompt injection
+    const sanitizedContent = sanitizeAiContent(content);
+    // Ensure numberOfQuestions is within valid range
+    const validNumberOfQuestions = Math.min(Math.max(1, numberOfQuestions), 50);
+
+    const prompt = `Generate ${validNumberOfQuestions} ${difficulty} quiz questions from the following content.
 Return a JSON array with objects containing "question", "options" (array of 4 strings), and "correctAnswer" (index of correct option) fields.
 
 Content:
-${content}
+${sanitizedContent}
 
 Return only valid JSON array, no markdown formatting or additional text.`;
 
@@ -232,14 +280,26 @@ Return only valid JSON array, no markdown formatting or additional text.`;
         return response.text();
       });
 
+      // Sanitize AI response before parsing
+      const sanitizedResponse = sanitizeAiContent(textResponse);
+
       // Try to extract JSON from the response
-      const jsonMatch = textResponse.match(/\[[\s\S]*\]/);
+      const jsonMatch = sanitizedResponse.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Validate that parsed data is an array
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
       }
 
       // Fallback: try to parse the entire response
-      return JSON.parse(textResponse);
+      const parsed = JSON.parse(sanitizedResponse);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      throw new Error('Invalid response format from AI');
     } catch (error) {
       this.logger.error('Error generating quiz', error);
       throw new Error('Failed to generate quiz');

@@ -42,17 +42,17 @@ export function Footer() {
                         <h3 className="mb-4 text-sm font-semibold text-foreground">Company</h3>
                         <ul className="space-y-3 text-sm">
                             <li>
-                                <a href="#" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
+                                <a href="/about" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     About
                                 </a>
                             </li>
                             <li>
-                                <a href="#" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
+                                <a href="/privacy" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     Privacy
                                 </a>
                             </li>
                             <li>
-                                <a href="#" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
+                                <a href="/terms" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     Terms
                                 </a>
                             </li>

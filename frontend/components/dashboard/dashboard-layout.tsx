@@ -152,8 +152,8 @@ export function DashboardLayout({ children, title, headerAction }: DashboardLayo
                             <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
                                 Settings
                             </p>
-                            <NavItem icon={<UserIcon className="size-5" />} label="Profile" />
-                            <NavItem icon={<HelpCircle className="size-5" />} label="Help & Support" />
+                            <NavItem icon={<UserIcon className="size-5" />} label="Profile" href="/dashboard/profile" active={pathname === '/dashboard/profile'} />
+                            <NavItem icon={<HelpCircle className="size-5" />} label="Help & Support" href="/dashboard/help" active={pathname === '/dashboard/help'} />
                             <button
                                 onClick={() => setShowLogoutModal(true)}
                                 disabled={isLoggingOut}
@@ -302,11 +302,15 @@ export function DashboardLayout({ children, title, headerAction }: DashboardLayo
                             <NavItem 
                                 icon={<UserIcon className="size-5" />} 
                                 label="Profile"
+                                href="/dashboard/profile"
+                                active={pathname === '/dashboard/profile'}
                                 onNavigate={() => setSidebarOpen(false)}
                             />
                             <NavItem 
                                 icon={<HelpCircle className="size-5" />} 
                                 label="Help & Support"
+                                href="/dashboard/help"
+                                active={pathname === '/dashboard/help'}
                                 onNavigate={() => setSidebarOpen(false)}
                             />
                             <button

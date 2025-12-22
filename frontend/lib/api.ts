@@ -25,6 +25,8 @@ export interface User {
   avatar: string | null;
   createdAt: string;
   updatedAt: string;
+  canEditProfile?: boolean;
+  provider?: 'google' | 'facebook' | 'email';
 }
 
 class ApiClient {
@@ -194,6 +196,13 @@ class ApiClient {
   async getCurrentUser(): Promise<ApiResponse<User>> {
     return this.request<User>('/users/me', {
       method: 'GET',
+    });
+  }
+
+  async updateProfile(data: { name?: string; avatar?: string }): Promise<ApiResponse<User>> {
+    return this.request<User>('/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 

@@ -13,11 +13,51 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Security
-  app.use(helmet());
+  // Security - Configure Helmet with proper CSP and security headers
+  const isProduction = configService.get<string>('app.nodeEnv') === 'production';
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Next.js requires unsafe-inline/eval for dev
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:", "blob:"],
+          connectSrc: [
+            "'self'",
+            'https://generativelanguage.googleapis.com',
+            'https://accounts.google.com',
+            'https://www.facebook.com',
+          ],
+          fontSrc: ["'self'", "data:", "https:"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+          upgradeInsecureRequests: isProduction ? [] : null, // Only in production
+        },
+      },
+      hsts: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true,
+      },
+      frameguard: { action: 'deny' },
+      noSniff: true,
+      xssFilter: true,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }),
+  );
 
   // Cookie parser
   app.use(cookieParser());
+
+  // Request body size limits to prevent DoS attacks
+  // Configure body parser limits (NestJS uses express under the hood)
+  app.use(require('express').json({ limit: '1mb' })); // Limit JSON payloads to 1MB
+  app.use(require('express').urlencoded({ limit: '1mb', extended: true })); // Limit URL-encoded payloads to 1MB
 
   // CORS
   const frontendUrl = configService.get<string>('app.frontendUrl');
@@ -27,6 +67,7 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
     exposedHeaders: ['X-Request-ID'],
+    maxAge: 86400, // Cache preflight requests for 24 hours
   });
 
   // Global prefix

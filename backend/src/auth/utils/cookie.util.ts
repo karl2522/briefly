@@ -18,6 +18,27 @@ export function setAuthCookies(
   const accessTokenMaxAge = parseExpirationToMs(jwtExpiresIn);
   const refreshTokenMaxAge = parseExpirationToMs(refreshExpiresIn);
 
+  // Extract domain from frontend URL for cookie domain setting
+  const frontendUrl = configService.get<string>('app.frontendUrl') || '';
+  let cookieDomain: string | undefined;
+  
+  if (isProduction && frontendUrl) {
+    try {
+      const url = new URL(frontendUrl);
+      // Set domain for production (e.g., '.yourdomain.com' for subdomain support)
+      // Only set if it's a proper domain (not localhost or IP)
+      if (url.hostname && !url.hostname.includes('localhost') && !url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+        // Extract root domain (e.g., 'yourdomain.com' from 'app.yourdomain.com')
+        const parts = url.hostname.split('.');
+        if (parts.length >= 2) {
+          cookieDomain = `.${parts.slice(-2).join('.')}`;
+        }
+      }
+    } catch (e) {
+      // Invalid URL, skip domain setting
+    }
+  }
+
   // Set access token cookie (short-lived)
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
@@ -25,6 +46,7 @@ export function setAuthCookies(
     sameSite: 'strict', // CSRF protection
     maxAge: accessTokenMaxAge,
     path: '/',
+    ...(cookieDomain && { domain: cookieDomain }), // Set domain only in production with valid domain
   });
 
   // Set refresh token cookie (long-lived)
@@ -34,6 +56,7 @@ export function setAuthCookies(
     sameSite: 'strict',
     maxAge: refreshTokenMaxAge,
     path: '/',
+    ...(cookieDomain && { domain: cookieDomain }), // Set domain only in production with valid domain
   });
 }
 
@@ -41,17 +64,37 @@ export function setAuthCookies(
  * Clears authentication cookies
  */
 export function clearAuthCookies(res: Response): void {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const frontendUrl = process.env.FRONTEND_URL || '';
+  let cookieDomain: string | undefined;
+  
+  if (isProduction && frontendUrl) {
+    try {
+      const url = new URL(frontendUrl);
+      if (url.hostname && !url.hostname.includes('localhost') && !url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+        const parts = url.hostname.split('.');
+        if (parts.length >= 2) {
+          cookieDomain = `.${parts.slice(-2).join('.')}`;
+        }
+      }
+    } catch (e) {
+      // Invalid URL, skip domain setting
+    }
+  }
+
   res.clearCookie('accessToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction,
     sameSite: 'strict',
     path: '/',
+    ...(cookieDomain && { domain: cookieDomain }),
   });
   res.clearCookie('refreshToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction,
     sameSite: 'strict',
     path: '/',
+    ...(cookieDomain && { domain: cookieDomain }),
   });
 }
 
