@@ -1,16 +1,18 @@
-import type { INestApplication } from '@nestjs/common';
 import serverless from 'serverless-http';
 import { createNestApp } from '../src/main';
 
-// Cache the NestJS app instance to reduce cold starts
-let cachedApp: INestApplication;
+// Cache the serverless handler to reduce cold starts
+let cachedHandler: any;
 
 export default async function handler(req: any, res: any) {
-  // Initialize app on first request (cached for subsequent requests)
-  if (!cachedApp) {
-    cachedApp = await createNestApp();
+  // Initialize handler on first request (cached for subsequent requests)
+  if (!cachedHandler) {
+    const app = await createNestApp();
+    // Get the underlying Express app from NestJS
+    const expressApp = app.getHttpAdapter().getInstance();
+    // Convert Express app to serverless handler
+    cachedHandler = serverless(expressApp);
   }
   
-  // Convert NestJS app to serverless handler
-  return serverless(cachedApp)(req, res);
+  return cachedHandler(req, res);
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -13,6 +13,11 @@ export class UsersController {
   async getCurrentUser(@CurrentUser() user: any) {
     // Fetch full user data including OAuth providers
     const fullUser = await this.usersService.findById(user.id);
+    
+    if (!fullUser) {
+      throw new NotFoundException('User not found');
+    }
+    
     const userWithProviders = await this.usersService.getUserWithProviders(user.id);
     
     return {
