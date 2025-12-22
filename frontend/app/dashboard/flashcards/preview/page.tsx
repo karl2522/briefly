@@ -13,7 +13,7 @@ import {
     Save
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 
 interface Flashcard {
     question: string
@@ -29,7 +29,7 @@ interface FlashcardSet {
 
 const STORAGE_KEY = "briefly_flashcard_sets"
 
-export default function FlashcardPreviewPage() {
+function FlashcardPreviewContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [flashcards, setFlashcards] = useState<Flashcard[]>([])
@@ -265,3 +265,20 @@ export default function FlashcardPreviewPage() {
     )
 }
 
+export default function FlashcardPreviewPage() {
+    return (
+        <Suspense
+            fallback={
+                <DashboardLayout title="Preview">
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <Loader2 className="size-8 animate-spin text-primary mb-4" />
+                        <h3 className="mb-2 text-lg font-semibold text-foreground">Loading preview...</h3>
+                        <p className="text-sm text-muted-foreground">Please wait.</p>
+                    </div>
+                </DashboardLayout>
+            }
+        >
+            <FlashcardPreviewContent />
+        </Suspense>
+    )
+}
