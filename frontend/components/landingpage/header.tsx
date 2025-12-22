@@ -28,6 +28,7 @@ const scrollToSection = (id: string) => {
 
 export function Header() {
     const [isOpen, setIsOpen] = useState(false)
+    const [isScrolled, setIsScrolled] = useState(false)
     const router = useRouter()
 
     useEffect(() => {
@@ -38,6 +39,16 @@ export function Header() {
         window.addEventListener("keydown", onKey)
         return () => window.removeEventListener("keydown", onKey)
     }, [isOpen])
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 0)
+        }
+        window.addEventListener("scroll", handleScroll)
+        // Check initial scroll position
+        handleScroll()
+        return () => window.removeEventListener("scroll", handleScroll)
+    }, [])
 
     const handleNav = (target: string) => {
         setIsOpen(false)
@@ -55,11 +66,11 @@ export function Header() {
     }
 
     return (
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-border/40 bg-background shadow-sm">
+        <header className={`fixed left-0 right-0 top-0 z-50 bg-background transition-all duration-200 ${isScrolled ? "border-b border-border/40 shadow-sm" : ""}`}>
             <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
                 <Link href="/" className="flex items-center gap-2">
                     <div className="relative h-10 w-10 overflow-hidden rounded-lg bg-background">
-                        <Image src="/briefly-logo.png" alt="Briefly logo" fill className="object-contain" priority />
+                        <Image src="/briefly-logo.png" alt="Briefly logo" fill className="object-contain" priority unoptimized />
                     </div>
                     <span className="text-2xl font-extrabold text-foreground">Briefly</span>
                 </Link>
@@ -105,64 +116,64 @@ export function Header() {
                 </IconButton>
             </div>
 
-            <div className="md:hidden">
-                <div
+                <div className="md:hidden">
+                    <div
                     className={`fixed inset-0 z-40 bg-background/90 transition-opacity duration-300 ${
                         isOpen ? "opacity-100" : "pointer-events-none opacity-0"
                     }`}
-                    onClick={() => setIsOpen(false)}
-                    aria-label="Close menu overlay"
-                    role="button"
-                    tabIndex={-1}
-                />
+                        onClick={() => setIsOpen(false)}
+                        aria-label="Close menu overlay"
+                        role="button"
+                        tabIndex={-1}
+                    />
                 <div
                     className={`fixed right-0 top-0 z-50 flex h-full w-72 max-w-[80vw] transform flex-col border-l border-border/80 bg-background shadow-2xl transition-transform duration-300 ease-in-out ${
                         isOpen ? "translate-x-0" : "translate-x-full"
                     }`}
                     aria-hidden={!isOpen}
                 >
-                    <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
+                            <div className="flex items-center gap-2">
                             <div className="relative h-10 w-10 overflow-hidden rounded-lg bg-background">
-                                <Image src="/briefly-logo.png" alt="Briefly logo" fill className="object-contain" priority />
-                            </div>
+                                <Image src="/briefly-logo.png" alt="Briefly logo" fill className="object-contain" priority unoptimized />
+                                </div>
                             <span className="text-xl font-extrabold text-foreground">Briefly</span>
+                            </div>
+                            <IconButton aria-label="Close menu" className="h-9 w-9" onClick={() => setIsOpen(false)}>
+                                <X className="h-5 w-5" />
+                            </IconButton>
                         </div>
-                        <IconButton aria-label="Close menu" className="h-9 w-9" onClick={() => setIsOpen(false)}>
-                            <X className="h-5 w-5" />
-                        </IconButton>
-                    </div>
 
-                    <nav className="flex flex-col gap-2 px-4 py-4">
-                        {NAV_ITEMS.map((item) => (
-                            <button
-                                key={item.target}
-                                type="button"
-                                onClick={() => handleNav(item.target)}
-                                className="w-full rounded-lg px-3 py-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-primary/8 hover:text-primary"
+                        <nav className="flex flex-col gap-2 px-4 py-4">
+                            {NAV_ITEMS.map((item) => (
+                                <button
+                                    key={item.target}
+                                    type="button"
+                                    onClick={() => handleNav(item.target)}
+                                    className="w-full rounded-lg px-3 py-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-primary/8 hover:text-primary"
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </nav>
+
+                        <div className="mt-auto space-y-3 px-4 pb-6">
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-center border border-border text-foreground hover:border-primary/60"
+                                onClick={handleSignIn}
                             >
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>
-
-                    <div className="mt-auto space-y-3 px-4 pb-6">
-                        <Button
-                            variant="ghost"
-                            className="w-full justify-center border border-border text-foreground hover:border-primary/60"
-                            onClick={handleSignIn}
-                        >
-                            Sign In
-                        </Button>
-                        <Button
-                            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                            onClick={handleSignUp}
-                        >
-                            Get Started Free
-                        </Button>
+                                Sign In
+                            </Button>
+                            <Button
+                                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                                onClick={handleSignUp}
+                            >
+                                Get Started Free
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            </div>
         </header>
     )
 }

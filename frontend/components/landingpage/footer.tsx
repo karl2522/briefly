@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react"
+import Image from "next/image"
 
 export function Footer() {
     return (
@@ -7,8 +7,8 @@ export function Footer() {
                 <div className="grid gap-8 md:grid-cols-4">
                     <div className="md:col-span-2">
                         <div className="mb-4 flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                                <Sparkles className="h-5 w-5 text-primary-foreground" />
+                            <div className="relative h-8 w-8 overflow-hidden rounded-lg">
+                                <Image src="/briefly-logo.png" alt="Briefly logo" fill className="object-contain" unoptimized />
                             </div>
                             <span className="text-xl font-bold text-foreground">Briefly</span>
                         </div>
@@ -21,17 +21,17 @@ export function Footer() {
                         <h3 className="mb-4 text-sm font-semibold text-foreground">Product</h3>
                         <ul className="space-y-3 text-sm">
                             <li>
-                                <a href="#features" className="text-muted-foreground transition-colors hover:text-foreground">
+                                <a href="#features" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     Features
                                 </a>
                             </li>
                             <li>
-                                <a href="#tools" className="text-muted-foreground transition-colors hover:text-foreground">
+                                <a href="#tools" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     Tools
                                 </a>
                             </li>
                             <li>
-                                <a href="#how-it-works" className="text-muted-foreground transition-colors hover:text-foreground">
+                                <a href="#how-it-works" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     How It Works
                                 </a>
                             </li>
@@ -42,17 +42,17 @@ export function Footer() {
                         <h3 className="mb-4 text-sm font-semibold text-foreground">Company</h3>
                         <ul className="space-y-3 text-sm">
                             <li>
-                                <a href="#" className="text-muted-foreground transition-colors hover:text-foreground">
+                                <a href="#" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     About
                                 </a>
                             </li>
                             <li>
-                                <a href="#" className="text-muted-foreground transition-colors hover:text-foreground">
+                                <a href="#" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     Privacy
                                 </a>
                             </li>
                             <li>
-                                <a href="#" className="text-muted-foreground transition-colors hover:text-foreground">
+                                <a href="#" className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
                                     Terms
                                 </a>
                             </li>

@@ -1,12 +1,13 @@
 import * as React from "react"
 
-type Variant = "default" | "outline" | "ghost"
+type Variant = "default" | "outline" | "ghost" | "destructive"
 type Size = "default" | "sm" | "lg" | "icon"
 
 const variantStyles: Record<Variant, string> = {
     default: "bg-primary text-primary-foreground hover:bg-primary/90",
     outline: "border border-border bg-transparent text-foreground hover:bg-accent/10",
     ghost: "text-foreground hover:bg-accent/10",
+    destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
 }
 
 const sizeStyles: Record<Size, string> = {

@@ -1,5 +1,8 @@
-import { FileText, CreditCard, BookOpen, PenTool } from "lucide-react"
+"use client"
+
 import { Button } from "@/components/ui/button"
+import { BookOpen, CreditCard, FileText, PenTool } from "lucide-react"
+import { ScrollAnimatedSection } from "./scroll-animated-section"
 
 const tools = [
     {
@@ -38,36 +41,35 @@ export function ToolsSection() {
     return (
         <section id="tools" className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
             <div className="container mx-auto max-w-6xl">
-                <div className="mb-6 text-center sm:mb-8 lg:mb-10">
+                <ScrollAnimatedSection direction="up" className="mb-6 text-center sm:mb-8 lg:mb-10">
                     <h2 className="mb-2 text-balance text-xl font-bold text-foreground sm:text-2xl lg:text-3xl">
                         Powerful Learning Tools
                     </h2>
                     <p className="mx-auto max-w-2xl text-pretty text-sm text-muted-foreground sm:text-base">
                         Choose from our suite of AI-powered tools designed to make studying more efficient and effective.
                     </p>
-                </div>
+                </ScrollAnimatedSection>
 
                 <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:gap-5">
                     {tools.map((tool, index) => (
-                        <div
-                            key={index}
-                            className={`group relative overflow-hidden rounded-xl border border-border bg-gradient-to-br ${tool.gradient} p-4 transition-all hover:border-primary/50 hover:shadow-lg sm:p-5`}
-                        >
-                            <div
-                                className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-background shadow-sm ${tool.iconColor} transition-transform group-hover:scale-110`}
-                            >
-                                <tool.icon className="h-5 w-5" />
+                        <ScrollAnimatedSection key={index} direction="up" delay={index * 150}>
+                            <div className={`group relative overflow-hidden rounded-xl border border-border bg-gradient-to-br ${tool.gradient} p-4 transition-all hover:border-primary/50 hover:shadow-lg sm:p-5`}>
+                                <div
+                                    className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-background shadow-sm ${tool.iconColor} transition-transform group-hover:scale-110`}
+                                >
+                                    <tool.icon className="h-5 w-5" />
+                                </div>
+
+                                <h3 className="mb-2 text-lg font-bold text-foreground sm:text-xl">{tool.title}</h3>
+
+                                <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{tool.description}</p>
+
+                                <Button variant="ghost" className="group/btn p-0 text-sm hover:bg-transparent">
+                                    <span className="text-primary">Try it now</span>
+                                    <span className="ml-1 transition-transform group-hover/btn:translate-x-1">→</span>
+                                </Button>
                             </div>
-
-                            <h3 className="mb-2 text-lg font-bold text-foreground sm:text-xl">{tool.title}</h3>
-
-                            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{tool.description}</p>
-
-                            <Button variant="ghost" className="group/btn p-0 text-sm hover:bg-transparent">
-                                <span className="text-primary">Try it now</span>
-                                <span className="ml-1 transition-transform group-hover/btn:translate-x-1">→</span>
-                            </Button>
-                        </div>
+                        </ScrollAnimatedSection>
                     ))}
                 </div>
             </div>

@@ -1,7 +1,9 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import type React from "react"
+import { Button } from "@/components/ui/button";
+import type React from "react";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 const iconBase =
     "h-5 w-5"
@@ -41,9 +43,22 @@ const providerConfig: Record<Provider, { label: string; icon: React.ReactNode; c
 
 interface OAuthButtonsProps {
     onClick?: (provider: Provider) => void
+    mode?: "signin" | "signup"
 }
 
-export function OAuthButtons({ onClick }: OAuthButtonsProps) {
+export function OAuthButtons({ onClick, mode = "signin" }: OAuthButtonsProps) {
+    const handleOAuthClick = (provider: Provider) => {
+        if (onClick) {
+            onClick(provider);
+            return;
+        }
+
+        // Redirect to OAuth endpoint with mode as query parameter
+        const endpoint = `${API_BASE_URL}/auth/${provider}?mode=${mode}`;
+        
+        window.location.href = endpoint;
+    };
+
     return (
         <div className="grid gap-3">
             {(Object.keys(providerConfig) as Provider[]).map((provider) => {
@@ -52,8 +67,8 @@ export function OAuthButtons({ onClick }: OAuthButtonsProps) {
                     <Button
                         key={provider}
                         variant="outline"
-                        className={`w-full justify-center gap-2 border ${cfg.className}`}
-                        onClick={() => onClick?.(provider)}
+                        className={`w-full justify-center gap-2 border ${cfg.className} cursor-pointer`}
+                        onClick={() => handleOAuthClick(provider)}
                         type="button"
                     >
                         {cfg.icon}
