@@ -3,7 +3,15 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, BookOpen, Brain, Check, GraduationCap, Loader2, Save } from "lucide-react"
+import {
+    ArrowLeft,
+    BookOpen,
+    Brain,
+    Check,
+    GraduationCap,
+    Loader2,
+    Save
+} from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
