@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "ignore": [
+    "frontend/**"
+  ],
+  "builds": [
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "api/index.ts"
+    }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 300
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "vercel-build": "npm run build && npx prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -50,7 +51,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "uuid": "^9.0.1",
-    "@google/generative-ai": "^0.21.0"
+    "@google/generative-ai": "^0.21.0",
+    "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -63,6 +65,7 @@
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^9.0.8",
+    "@types/serverless-http": "^2.0.4",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

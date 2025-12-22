@@ -16,6 +16,15 @@ export class AppController {
   }
 
   @Public()
+  @Get('health')
+  getHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Public()
   @Get('csrf-token')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   getCsrfToken(@Res() res: Response) {

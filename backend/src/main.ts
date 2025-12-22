@@ -1,3 +1,4 @@
+import type { INestApplication } from '@nestjs/common';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -9,7 +10,11 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 
 const cookieParser = require('cookie-parser');
 
-async function bootstrap() {
+/**
+ * Create and configure NestJS application
+ * This function is used both for local development and serverless deployment
+ */
+export async function createNestApp(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
@@ -105,9 +110,29 @@ async function bootstrap() {
   // Global interceptors
   app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
 
-  const port = configService.get<number>('app.port') || 3001;
-  await app.listen(port);
-  
-  console.log(`🚀 Application is running on: http://localhost:${port}/api`);
+  // Initialize the app (don't call listen() for serverless)
+  await app.init();
+
+  return app;
 }
-bootstrap();
+
+/**
+ * Bootstrap function for local development
+ * Only runs when not in serverless environment
+ */
+async function bootstrap() {
+  // Only start HTTP server if not in serverless environment
+  if (process.env.VERCEL !== '1') {
+    const app = await createNestApp();
+    const configService = app.get(ConfigService);
+    const port = configService.get<number>('app.port') || 3001;
+    
+    await app.listen(port);
+    console.log(`🚀 Application is running on: http://localhost:${port}/api`);
+  }
+}
+
+// Only bootstrap if running locally (not in Vercel)
+if (require.main === module && process.env.VERCEL !== '1') {
+  bootstrap();
+}
