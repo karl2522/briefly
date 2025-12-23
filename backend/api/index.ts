@@ -67,7 +67,8 @@ export default async function handler(req: any, res: any) {
       (async () => {
         // Lazy import createNestApp to avoid hanging during module load
         console.log('=== LAZY IMPORTING createNestApp ===');
-        const { createNestApp } = await import('../src/main');
+        // Use .js extension for TypeScript moduleResolution compatibility
+        const { createNestApp } = await import('../src/main.js');
         console.log('=== createNestApp imported successfully ===');
         return createNestApp();
       })().then((app) => {
