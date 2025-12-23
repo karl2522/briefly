@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://briefly-server.vercel.app/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://briefly-backend-production-277d.up.railway.app/api';
 
 export interface ApiResponse<T> {
   success: boolean;

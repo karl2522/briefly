@@ -1,0 +1,10 @@
+node_modules
+.git
+.env.local
+*.log
+coverage
+dist
+.railway
+netlify
+api
+.vercel

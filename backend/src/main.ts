@@ -12,7 +12,7 @@ const cookieParser = require('cookie-parser');
 
 /**
  * Create and configure NestJS application
- * This function is used both for local development and serverless deployment
+ * Used for both local development and Railway deployment
  */
 export async function createNestApp(): Promise<INestApplication> {
   console.log('[createNestApp] Step 1: Creating NestJS application...');
@@ -70,15 +70,15 @@ export async function createNestApp(): Promise<INestApplication> {
   app.use(require('express').json({ limit: '1mb' })); // Limit JSON payloads to 1MB
   app.use(require('express').urlencoded({ limit: '1mb', extended: true })); // Limit URL-encoded payloads to 1MB
 
-  // CORS - Allow multiple origins for Vercel deployments
+  // CORS - Allow multiple origins for frontend deployments
   const frontendUrl = configService.get<string>('app.frontendUrl');
   const allowedOrigins = frontendUrl 
     ? [frontendUrl] 
     : [
         'http://localhost:3000',
         'https://localhost:3000',
-        /^https:\/\/.*\.vercel\.app$/,
-        /^https:\/\/.*\.vercel\.app:\d+$/,
+        /^https:\/\/.*\.vercel\.app$/,  // Frontend on Vercel
+        /^https:\/\/.*\.railway\.app$/, // Backend on Railway (for health checks)
       ];
   
   app.enableCors({
@@ -114,8 +114,9 @@ export async function createNestApp(): Promise<INestApplication> {
     maxAge: 86400, // Cache preflight requests for 24 hours
   });
 
-  // Global prefix
+  // Global prefix - always set for Railway and local development
   app.setGlobalPrefix('api');
+  console.log('[createNestApp] Global prefix "api" set');
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -149,55 +150,41 @@ export async function createNestApp(): Promise<INestApplication> {
   // Global interceptors
   app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
 
-  // Initialize the app (don't call listen() for serverless)
+  // Initialize the app - required for route registration
   console.log('[createNestApp] Step 7: Initializing app...');
   const initStartTime = Date.now();
   
-  // Wrap app.init() in a timeout to prevent hanging
-  // app.init() is CRITICAL - it registers all routes!
-  try {
-    await Promise.race([
-      app.init(),
-      new Promise((_, reject) => 
-        setTimeout(() => {
-          const duration = Date.now() - initStartTime;
-          reject(new Error(`app.init() timeout after ${duration}ms`));
-        }, 10000) // Increased to 10 seconds
-      ),
-    ]);
-    console.log(`[createNestApp] Step 7 complete: App initialized in ${Date.now() - initStartTime}ms`);
-    
-    // Verify routes are registered
-    const routes = app.getHttpAdapter().getInstance()._router?.stack;
-    console.log(`[createNestApp] Routes registered: ${routes ? routes.length : 'unknown'}`);
-  } catch (error) {
-    console.error('[createNestApp] app.init() failed or timed out:', error);
-    console.error('[createNestApp] ERROR: Routes will NOT be registered without app.init()!');
-    // Don't continue without init - routes won't work
-    throw error;
-  }
+  await app.init();
+  console.log(`[createNestApp] Step 7 complete: App initialized in ${Date.now() - initStartTime}ms`);
+  
+  // Verify routes are registered
+  const routes = app.getHttpAdapter().getInstance()._router?.stack;
+  console.log(`[createNestApp] Routes registered: ${routes ? routes.length : 'unknown'}`);
   
   console.log('[createNestApp] All steps complete, returning app');
   return app;
 }
 
 /**
- * Bootstrap function for local development
- * Only runs when not in serverless environment
+ * Bootstrap function - runs the server
+ * Works for both local development and Railway deployment
  */
 async function bootstrap() {
-  // Only start HTTP server if not in serverless environment
-  if (process.env.VERCEL !== '1') {
-    const app = await createNestApp();
-    const configService = app.get(ConfigService);
-    const port = configService.get<number>('app.port') || 3001;
-    
-    await app.listen(port);
-    console.log(`🚀 Application is running on: http://localhost:${port}/api`);
-  }
+  const app = await createNestApp();
+  const configService = app.get(ConfigService);
+  
+  // Railway provides PORT environment variable, fallback to 3001 for local
+  const port = process.env.PORT || configService.get<number>('app.port') || 3001;
+  
+  await app.listen(port);
+  console.log(`🚀 Application is running on: http://0.0.0.0:${port}/api`);
+  console.log(`📡 Health check: http://0.0.0.0:${port}/api/health`);
 }
 
-// Only bootstrap if running locally (not in Vercel)
-if (require.main === module && process.env.VERCEL !== '1') {
-  bootstrap();
+// Bootstrap when this file is run directly (not imported)
+if (require.main === module) {
+  bootstrap().catch((error) => {
+    console.error('Failed to start application:', error);
+    process.exit(1);
+  });
 }

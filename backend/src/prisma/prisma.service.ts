@@ -5,9 +5,7 @@ import { PrismaClient } from '@prisma/client';
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
     super({
-      // Optimize for serverless environments
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-      // Connection pool settings for serverless
       datasources: {
         db: {
           url: process.env.DATABASE_URL,
@@ -17,14 +15,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit() {
-    // For serverless, use lazy connection - don't connect on module init
-    // Connection will happen on first query automatically
-    if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
-      console.log('[PrismaService] Serverless mode: Skipping eager connection, will connect on first query');
-      return;
-    }
-    
-    // For local development, connect eagerly
+    // Connect to database when module initializes
+    // Railway supports eager connections, no need for lazy loading
     try {
       console.log('[PrismaService] Starting database connection...');
       console.log('[PrismaService] DATABASE_URL exists:', !!process.env.DATABASE_URL);
@@ -39,7 +31,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           setTimeout(() => {
             const duration = Date.now() - startTime;
             reject(new Error(`Database connection timeout after ${duration}ms. Check DATABASE_URL and database accessibility.`));
-          }, 5000)
+          }, 10000) // 10 second timeout
         ),
       ]);
     } catch (error) {
@@ -50,12 +42,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleDestroy() {
-    // Disconnect when module is destroyed (important for serverless)
+    // Disconnect when module is destroyed
     await this.$disconnect();
   }
 
   /**
-   * Cleanup method for serverless environments
+   * Cleanup method for application shutdown
    * Ensures connections are properly closed
    */
   async onApplicationShutdown() {

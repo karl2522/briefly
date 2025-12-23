@@ -49,6 +49,11 @@ lerna-debug.log*
 # Vercel
 .vercel
 
+# Railway
+# Note: .railway/ folder should be COMMITTED (contains project linking info)
+# .railwayignore should be COMMITTED
+.env.railway
+
 # Runtime data
 pids
 *.pid
