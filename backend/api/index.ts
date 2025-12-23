@@ -1,11 +1,13 @@
-import serverless from 'serverless-http';
-import { createNestApp } from '../src/main';
-
-// IMMEDIATE LOGGING - This should appear in logs if function is invoked
-console.log('=== API HANDLER FILE LOADED ===');
+// IMMEDIATE LOGGING - At the very top, before any imports
+console.log('=== MODULE LOADING START ===');
 console.log('Timestamp:', new Date().toISOString());
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('VERCEL:', process.env.VERCEL);
+
+import serverless from 'serverless-http';
+console.log('=== serverless-http imported ===');
+
+// DON'T import createNestApp at top level - import it lazily in handler
+// Top-level import triggers NestJS module initialization which hangs
+console.log('=== MODULE LOADED COMPLETELY (without NestJS import) ===');
 
 // Cache the serverless handler to reduce cold starts
 let cachedHandler: any;
@@ -62,7 +64,13 @@ export default async function handler(req: any, res: any) {
     console.log('NODE_ENV:', process.env.NODE_ENV);
     
     initializationPromise = Promise.race([
-      createNestApp().then((app) => {
+      (async () => {
+        // Lazy import createNestApp to avoid hanging during module load
+        console.log('=== LAZY IMPORTING createNestApp ===');
+        const { createNestApp } = await import('../src/main');
+        console.log('=== createNestApp imported successfully ===');
+        return createNestApp();
+      })().then((app) => {
         console.log('NestJS app created, getting Express instance...');
         const expressApp = app.getHttpAdapter().getInstance();
         cachedHandler = serverless(expressApp);
