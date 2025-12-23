@@ -22,6 +22,21 @@ export default async function handler(req: any, res: any) {
   console.log('Request Method:', req.method);
   console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
   
+  // Handle root path with helpful message
+  if (req.url === '/' || req.url === '') {
+    return res.status(200).json({
+      message: 'Briefly API Server',
+      status: 'running',
+      version: '1.0.0',
+      endpoints: {
+        health: '/api/health',
+        test: '/test',
+        api: '/api/*',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
   try {
     // Return cached error if initialization failed previously
     if (initError) {
