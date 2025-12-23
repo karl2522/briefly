@@ -72,39 +72,60 @@ export async function createNestApp(): Promise<INestApplication> {
 
   // CORS - Allow multiple origins for frontend deployments
   const frontendUrl = configService.get<string>('app.frontendUrl');
-  const allowedOrigins = frontendUrl 
-    ? [frontendUrl] 
-    : [
-        'http://localhost:3000',
-        'https://localhost:3000',
-        /^https:\/\/.*\.vercel\.app$/,  // Frontend on Vercel
-        /^https:\/\/.*\.railway\.app$/, // Backend on Railway (for health checks)
-      ];
+  
+  // Normalize frontend URL (remove trailing slash)
+  const normalizedFrontendUrl = frontendUrl?.replace(/\/$/, '');
+  
+  // Build allowed origins list
+  const allowedOrigins: (string | RegExp)[] = [];
+  
+  if (normalizedFrontendUrl) {
+    allowedOrigins.push(normalizedFrontendUrl);
+    console.log(`[CORS] Frontend URL configured: ${normalizedFrontendUrl}`);
+  }
+  
+  // Always allow localhost for development
+  allowedOrigins.push('http://localhost:3000');
+  allowedOrigins.push('https://localhost:3000');
+  
+  // Allow all Vercel domains (frontend deployments)
+  allowedOrigins.push(/^https:\/\/.*\.vercel\.app$/);
+  
+  // Allow Railway domains (for health checks and internal requests)
+  allowedOrigins.push(/^https:\/\/.*\.railway\.app$/);
+  
+  console.log(`[CORS] Allowed origins: ${JSON.stringify(allowedOrigins.map(o => o instanceof RegExp ? o.toString() : o))}`);
   
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) {
+        console.log('[CORS] Request with no origin - allowing');
         return callback(null, true);
       }
       
+      console.log(`[CORS] Checking origin: ${origin}`);
+      
       // Check if origin matches allowed origins
-      if (typeof allowedOrigins === 'string') {
-        if (origin === allowedOrigins) {
-          return callback(null, true);
-        }
-      } else if (Array.isArray(allowedOrigins)) {
-        for (const allowedOrigin of allowedOrigins) {
-          if (typeof allowedOrigin === 'string' && origin === allowedOrigin) {
+      for (const allowedOrigin of allowedOrigins) {
+        if (typeof allowedOrigin === 'string') {
+          // Exact match (normalize trailing slashes)
+          const normalizedOrigin = origin.replace(/\/$/, '');
+          if (normalizedOrigin === allowedOrigin || origin === allowedOrigin) {
+            console.log(`[CORS] Origin matched (exact): ${origin}`);
             return callback(null, true);
-          } else if (allowedOrigin instanceof RegExp && allowedOrigin.test(origin)) {
+          }
+        } else if (allowedOrigin instanceof RegExp) {
+          if (allowedOrigin.test(origin)) {
+            console.log(`[CORS] Origin matched (regex): ${origin}`);
             return callback(null, true);
           }
         }
       }
       
       // Log rejected origins for debugging
-      console.log(`[CORS] Rejected origin: ${origin}`);
+      console.error(`[CORS] Rejected origin: ${origin}`);
+      console.error(`[CORS] Allowed origins were: ${JSON.stringify(allowedOrigins.map(o => o instanceof RegExp ? o.toString() : o))}`);
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,

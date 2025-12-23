@@ -123,7 +123,7 @@ export class AuthController {
     res.cookie('oauth_mode', mode, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', // More secure than 'lax'
+      sameSite: 'lax', // Use 'lax' for cross-domain OAuth flows (frontend on Vercel, backend on Railway)
       maxAge: 5 * 60 * 1000, // 5 minutes
     });
     
@@ -183,7 +183,7 @@ export class AuthController {
     res.cookie('oauth_mode', mode, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', // More secure than 'lax'
+      sameSite: 'lax', // Use 'lax' for cross-domain OAuth flows (frontend on Vercel, backend on Railway)
       maxAge: 5 * 60 * 1000, // 5 minutes
     });
     
