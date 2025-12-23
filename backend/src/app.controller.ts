@@ -36,7 +36,7 @@ export class AppController {
     res.cookie('csrf-token', csrfToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax', // Use 'lax' for cross-domain support (still secure)
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       path: '/',
     });

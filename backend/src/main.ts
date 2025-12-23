@@ -64,10 +64,43 @@ export async function createNestApp(): Promise<INestApplication> {
   app.use(require('express').json({ limit: '1mb' })); // Limit JSON payloads to 1MB
   app.use(require('express').urlencoded({ limit: '1mb', extended: true })); // Limit URL-encoded payloads to 1MB
 
-  // CORS
+  // CORS - Allow multiple origins for Vercel deployments
   const frontendUrl = configService.get<string>('app.frontendUrl');
+  const allowedOrigins = frontendUrl 
+    ? [frontendUrl] 
+    : [
+        'http://localhost:3000',
+        'https://localhost:3000',
+        /^https:\/\/.*\.vercel\.app$/,
+        /^https:\/\/.*\.vercel\.app:\d+$/,
+      ];
+  
   app.enableCors({
-    origin: frontendUrl,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Check if origin matches allowed origins
+      if (typeof allowedOrigins === 'string') {
+        if (origin === allowedOrigins) {
+          return callback(null, true);
+        }
+      } else if (Array.isArray(allowedOrigins)) {
+        for (const allowedOrigin of allowedOrigins) {
+          if (typeof allowedOrigin === 'string' && origin === allowedOrigin) {
+            return callback(null, true);
+          } else if (allowedOrigin instanceof RegExp && allowedOrigin.test(origin)) {
+            return callback(null, true);
+          }
+        }
+      }
+      
+      // Log rejected origins for debugging
+      console.log(`[CORS] Rejected origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],

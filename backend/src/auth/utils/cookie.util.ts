@@ -43,7 +43,7 @@ export function setAuthCookies(
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
     secure: isProduction, // HTTPS only in production
-    sameSite: 'strict', // CSRF protection
+    sameSite: isProduction ? 'lax' : 'lax', // Use 'lax' for cross-domain support (still secure)
     maxAge: accessTokenMaxAge,
     path: '/',
     ...(cookieDomain && { domain: cookieDomain }), // Set domain only in production with valid domain
@@ -53,7 +53,7 @@ export function setAuthCookies(
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'strict',
+    sameSite: isProduction ? 'lax' : 'lax', // Use 'lax' for cross-domain support (still secure)
     maxAge: refreshTokenMaxAge,
     path: '/',
     ...(cookieDomain && { domain: cookieDomain }), // Set domain only in production with valid domain
@@ -85,14 +85,14 @@ export function clearAuthCookies(res: Response): void {
   res.clearCookie('accessToken', {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'strict',
+    sameSite: 'lax', // Use 'lax' for cross-domain support
     path: '/',
     ...(cookieDomain && { domain: cookieDomain }),
   });
   res.clearCookie('refreshToken', {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'strict',
+    sameSite: 'lax', // Use 'lax' for cross-domain support
     path: '/',
     ...(cookieDomain && { domain: cookieDomain }),
   });
