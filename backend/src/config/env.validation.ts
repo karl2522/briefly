@@ -24,7 +24,9 @@ class EnvironmentVariables {
     return trimmed !== '' && trimmed !== undefined && trimmed !== null;
   })
   @IsString()
-  @IsUrl({ require_protocol: true }, { message: 'DATABASE_URL must be a valid URL' })
+  @Matches(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/.+/, { 
+    message: 'DATABASE_URL must be a valid database connection URL (e.g., postgresql://user:pass@host:port/db)' 
+  })
   DATABASE_URL?: string;
 
   @IsOptional()
@@ -104,9 +106,23 @@ export function validate(config: Record<string, unknown>) {
   for (const [key, value] of Object.entries(config)) {
     if (value === '' || (typeof value === 'string' && value.trim() === '')) {
       cleanedConfig[key] = undefined;
+    } else if (typeof value === 'string') {
+      // Trim whitespace from string values
+      cleanedConfig[key] = value.trim();
     } else {
       cleanedConfig[key] = value;
     }
+  }
+  
+  // Debug logging for DATABASE_URL (masked for security)
+  if (cleanedConfig.DATABASE_URL) {
+    const dbUrl = cleanedConfig.DATABASE_URL as string;
+    const maskedUrl = dbUrl.length > 20 
+      ? `${dbUrl.substring(0, 10)}...${dbUrl.substring(dbUrl.length - 10)}` 
+      : '***';
+    console.log(`[Env Validation] DATABASE_URL present: ${maskedUrl}, length: ${dbUrl.length}, starts with: ${dbUrl.substring(0, 10)}`);
+  } else {
+    console.log('[Env Validation] DATABASE_URL is missing or empty');
   }
   
   const validatedConfig = plainToInstance(EnvironmentVariables, cleanedConfig, {
@@ -128,7 +144,11 @@ export function validate(config: Record<string, unknown>) {
     const errorMessages = errors
       .map((error) => {
         const constraints = Object.values(error.constraints || {}).join(', ');
-        return `- property ${error.property} has failed the following constraints: ${constraints}`;
+        const propertyValue = validatedConfig[error.property as keyof EnvironmentVariables];
+        const valuePreview = typeof propertyValue === 'string' && propertyValue.length > 50
+          ? `${propertyValue.substring(0, 50)}...`
+          : propertyValue;
+        return `- property ${error.property} (value: ${JSON.stringify(valuePreview)}) has failed the following constraints: ${constraints}`;
       })
       .join('\n');
     
