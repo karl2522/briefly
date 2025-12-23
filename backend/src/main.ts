@@ -154,6 +154,7 @@ export async function createNestApp(): Promise<INestApplication> {
   const initStartTime = Date.now();
   
   // Wrap app.init() in a timeout to prevent hanging
+  // app.init() is CRITICAL - it registers all routes!
   try {
     await Promise.race([
       app.init(),
@@ -161,18 +162,19 @@ export async function createNestApp(): Promise<INestApplication> {
         setTimeout(() => {
           const duration = Date.now() - initStartTime;
           reject(new Error(`app.init() timeout after ${duration}ms`));
-        }, 8000) // 8 second timeout for init
+        }, 10000) // Increased to 10 seconds
       ),
     ]);
     console.log(`[createNestApp] Step 7 complete: App initialized in ${Date.now() - initStartTime}ms`);
+    
+    // Verify routes are registered
+    const routes = app.getHttpAdapter().getInstance()._router?.stack;
+    console.log(`[createNestApp] Routes registered: ${routes ? routes.length : 'unknown'}`);
   } catch (error) {
     console.error('[createNestApp] app.init() failed or timed out:', error);
-    // In serverless, continue anyway - routes might still work
-    if (process.env.VERCEL === '1') {
-      console.warn('[createNestApp] Continuing without app.init() in serverless mode');
-    } else {
-      throw error;
-    }
+    console.error('[createNestApp] ERROR: Routes will NOT be registered without app.init()!');
+    // Don't continue without init - routes won't work
+    throw error;
   }
   
   console.log('[createNestApp] All steps complete, returning app');
