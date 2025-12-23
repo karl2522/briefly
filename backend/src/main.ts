@@ -152,8 +152,29 @@ export async function createNestApp(): Promise<INestApplication> {
   // Initialize the app (don't call listen() for serverless)
   console.log('[createNestApp] Step 7: Initializing app...');
   const initStartTime = Date.now();
-  await app.init();
-  console.log(`[createNestApp] Step 7 complete: App initialized in ${Date.now() - initStartTime}ms`);
+  
+  // Wrap app.init() in a timeout to prevent hanging
+  try {
+    await Promise.race([
+      app.init(),
+      new Promise((_, reject) => 
+        setTimeout(() => {
+          const duration = Date.now() - initStartTime;
+          reject(new Error(`app.init() timeout after ${duration}ms`));
+        }, 8000) // 8 second timeout for init
+      ),
+    ]);
+    console.log(`[createNestApp] Step 7 complete: App initialized in ${Date.now() - initStartTime}ms`);
+  } catch (error) {
+    console.error('[createNestApp] app.init() failed or timed out:', error);
+    // In serverless, continue anyway - routes might still work
+    if (process.env.VERCEL === '1') {
+      console.warn('[createNestApp] Continuing without app.init() in serverless mode');
+    } else {
+      throw error;
+    }
+  }
+  
   console.log('[createNestApp] All steps complete, returning app');
   return app;
 }
