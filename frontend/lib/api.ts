@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://briefly-server-kgemq8dwi-karl2522s-projects.vercel.app/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://briefly-server.vercel.app/api';
 
 export interface ApiResponse<T> {
   success: boolean;
