@@ -25,7 +25,7 @@ export default function SignInPage() {
                         </div>
                     }
                 >
-                    <SignInForm />
+                <SignInForm />
                 </Suspense>
             </div>
         </div>

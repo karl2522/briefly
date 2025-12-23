@@ -38,12 +38,24 @@ export default async function handler(req: any, res: any) {
     });
   }
   
-  // Strip /api prefix from req.url before passing to NestJS
+  // Strip /api prefix from request before passing to NestJS
   // NestJS has global prefix 'api', so routes are registered as /health, /auth/login, etc.
   // But Vercel routes /api/* to this handler, so req.url includes /api
-  if (req.url.startsWith('/api/')) {
-    req.url = req.url.replace('/api', '') || '/';
-    console.log('[Handler] Stripped /api prefix, new URL:', req.url);
+  const originalUrl = req.url || req.path || '/';
+  console.log('[Handler] Original request URL:', originalUrl);
+  
+  // Modify the request URL in place - serverless-http reads from req.url
+  if (originalUrl.startsWith('/api/')) {
+    const modifiedUrl = originalUrl.replace('/api', '') || '/';
+    req.url = modifiedUrl;
+    req.path = modifiedUrl;
+    console.log('[Handler] Stripped /api prefix:', { original: originalUrl, modified: modifiedUrl });
+  } else if (originalUrl === '/api') {
+    req.url = '/';
+    req.path = '/';
+    console.log('[Handler] Converted /api to /');
+  } else {
+    console.log('[Handler] No modification needed, URL:', originalUrl);
   }
   
   try {
@@ -156,9 +168,13 @@ export default async function handler(req: any, res: any) {
     });
   }
   
-  console.log('About to call cachedHandler');
+  console.log('[Handler] About to call cachedHandler');
+  console.log('[Handler] Final req.url:', req.url);
+  console.log('[Handler] Final req.path:', req.path);
+  console.log('[Handler] Final req.originalUrl:', req.originalUrl);
+  
   const result = await cachedHandler(req, res);
-  console.log('Handler execution completed');
+  console.log('[Handler] Handler execution completed');
   return result;
   } catch (error) {
     console.error('=== FATAL ERROR IN HANDLER ===');
