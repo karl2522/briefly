@@ -16,10 +16,12 @@ class EnvironmentVariables {
   @IsNumber()
   PORT?: number;
 
+  @IsOptional()
   @ValidateIf((o) => {
     const value = o.DATABASE_URL;
-    const isProduction = o.NODE_ENV === 'production';
-    return isProduction && value !== undefined && value !== null && value !== '';
+    if (!value || typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    return trimmed !== '' && trimmed !== undefined && trimmed !== null;
   })
   @IsString()
   @IsUrl({ require_protocol: true }, { message: 'DATABASE_URL must be a valid URL' })
@@ -97,10 +99,14 @@ class EnvironmentVariables {
 }
 
 export function validate(config: Record<string, unknown>) {
-  // Filter out empty strings and treat them as undefined
+  // Filter out empty strings and whitespace-only strings, treat them as undefined
   const cleanedConfig: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
-    cleanedConfig[key] = value === '' ? undefined : value;
+    if (value === '' || (typeof value === 'string' && value.trim() === '')) {
+      cleanedConfig[key] = undefined;
+    } else {
+      cleanedConfig[key] = value;
+    }
   }
   
   const validatedConfig = plainToInstance(EnvironmentVariables, cleanedConfig, {
