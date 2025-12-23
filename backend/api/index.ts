@@ -22,8 +22,9 @@ export default async function handler(req: any, res: any) {
   console.log('Request Method:', req.method);
   console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
   
-  // Handle root path with helpful message
-  if (req.url === '/' || req.url === '') {
+  // Handle root path and /api path with helpful message
+  // Note: req.url will be '/api' when accessing /api, or '/' when accessing root
+  if (req.url === '/' || req.url === '' || req.url === '/api') {
     return res.status(200).json({
       message: 'Briefly API Server',
       status: 'running',
@@ -35,6 +36,14 @@ export default async function handler(req: any, res: any) {
       },
       timestamp: new Date().toISOString(),
     });
+  }
+  
+  // Strip /api prefix from req.url before passing to NestJS
+  // NestJS has global prefix 'api', so routes are registered as /health, /auth/login, etc.
+  // But Vercel routes /api/* to this handler, so req.url includes /api
+  if (req.url.startsWith('/api/')) {
+    req.url = req.url.replace('/api', '') || '/';
+    console.log('[Handler] Stripped /api prefix, new URL:', req.url);
   }
   
   try {
