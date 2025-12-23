@@ -38,15 +38,26 @@ export default async function handler(req: any, res: any) {
     });
   }
   
-  // Don't strip /api prefix - NestJS handles the global prefix internally
-  // The global prefix 'api' is applied during route registration, not request handling
-  // So we pass the full path including /api to NestJS
+  // Strip /api prefix before passing to NestJS
+  // NestJS has global prefix 'api', so routes are registered as /health internally
+  // When request comes as /api/health, we strip /api and pass /health to NestJS
+  // NestJS will then match it against the /health route (which is exposed as /api/health externally)
   const originalUrl = req.url || req.path || '/';
-  console.log('[Handler] Request URL (passing to NestJS as-is):', originalUrl);
+  console.log('[Handler] Original request URL:', originalUrl);
   
-  // Ensure req.url and req.path are set correctly
-  if (!req.url) req.url = originalUrl;
-  if (!req.path) req.path = originalUrl;
+  let modifiedUrl = originalUrl;
+  if (originalUrl.startsWith('/api/')) {
+    modifiedUrl = originalUrl.replace('/api', '') || '/';
+    console.log('[Handler] Stripped /api prefix:', { original: originalUrl, modified: modifiedUrl });
+  } else if (originalUrl === '/api') {
+    modifiedUrl = '/';
+    console.log('[Handler] Converted /api to /');
+  }
+  
+  // Update request URL for NestJS
+  req.url = modifiedUrl;
+  req.path = modifiedUrl;
+  console.log('[Handler] Passing to NestJS with URL:', modifiedUrl);
   
   try {
     // Return cached error if initialization failed previously
@@ -163,9 +174,29 @@ export default async function handler(req: any, res: any) {
   console.log('[Handler] Final req.path:', req.path);
   console.log('[Handler] Final req.originalUrl:', req.originalUrl);
   
-  const result = await cachedHandler(req, res);
-  console.log('[Handler] Handler execution completed');
-  return result;
+  try {
+    // serverless-http handles the response asynchronously
+    // It modifies res directly, so we need to await it
+    const result = await cachedHandler(req, res);
+    console.log('[Handler] Handler execution completed, result:', result);
+    
+    // Check if response was already sent
+    if (res.headersSent) {
+      console.log('[Handler] Response already sent by NestJS');
+      return;
+    }
+    
+    // If result is defined, return it (though serverless-http usually modifies res directly)
+    return result;
+  } catch (handlerError) {
+    console.error('[Handler] Error in cachedHandler:', handlerError);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: 'Internal server error',
+        message: handlerError instanceof Error ? handlerError.message : 'Unknown error',
+      });
+    }
+  }
   } catch (error) {
     console.error('=== FATAL ERROR IN HANDLER ===');
     console.error('Error:', error);
