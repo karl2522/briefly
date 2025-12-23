@@ -1,6 +1,12 @@
 import serverless from 'serverless-http';
 import { createNestApp } from '../src/main';
 
+// IMMEDIATE LOGGING - This should appear in logs if function is invoked
+console.log('=== API HANDLER FILE LOADED ===');
+console.log('Timestamp:', new Date().toISOString());
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('VERCEL:', process.env.VERCEL);
+
 // Cache the serverless handler to reduce cold starts
 let cachedHandler: any;
 let isInitializing = false;
@@ -8,8 +14,15 @@ let initError: Error | null = null;
 let initializationPromise: Promise<any> | null = null;
 
 export default async function handler(req: any, res: any) {
-  // Return cached error if initialization failed previously
-  if (initError) {
+  // IMMEDIATE LOGGING - This should appear FIRST in logs
+  console.log('=== HANDLER CALLED ===');
+  console.log('Request URL:', req.url);
+  console.log('Request Method:', req.method);
+  console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+  
+  try {
+    // Return cached error if initialization failed previously
+    if (initError) {
     console.error('Returning cached initialization error:', initError.message);
     return res.status(500).json({
       error: 'Server initialization failed',
@@ -90,5 +103,23 @@ export default async function handler(req: any, res: any) {
     });
   }
   
-  return cachedHandler(req, res);
+  console.log('About to call cachedHandler');
+  const result = await cachedHandler(req, res);
+  console.log('Handler execution completed');
+  return result;
+  } catch (error) {
+    console.error('=== FATAL ERROR IN HANDLER ===');
+    console.error('Error:', error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
 }
+
