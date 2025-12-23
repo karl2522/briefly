@@ -12,14 +12,24 @@ export async function handleAuthResponse(
   response: { success: boolean; data?: AuthResponse; error?: string },
   router: ReturnType<typeof useRouter>,
 ) {
+  console.log('[Auth] handleAuthResponse called:', { success: response.success, hasData: !!response.data, error: response.error });
+  
   if (response.success && response.data) {
     // Tokens are set in httpOnly cookies by backend
     // No need to store them in localStorage
     // Just redirect to dashboard
+    console.log('[Auth] Redirecting to dashboard...');
     router.push('/dashboard');
+    // Also use window.location as fallback to ensure navigation
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/dashboard';
+      }
+    }, 100);
     return { success: true };
   }
 
+  console.error('[Auth] Auth response failed:', response.error);
   return {
     success: false,
     error: response.error || 'An error occurred',

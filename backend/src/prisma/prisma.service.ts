@@ -17,21 +17,34 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit() {
-    // Connect to database when module initializes
-    // Add timeout to prevent hanging
+    // For serverless, use lazy connection - don't connect on module init
+    // Connection will happen on first query automatically
+    if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+      console.log('[PrismaService] Serverless mode: Skipping eager connection, will connect on first query');
+      return;
+    }
+    
+    // For local development, connect eagerly
     try {
-      console.log('PrismaService: Connecting to database...');
+      console.log('[PrismaService] Starting database connection...');
+      console.log('[PrismaService] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+      
+      const startTime = Date.now();
       await Promise.race([
-        this.$connect(),
+        this.$connect().then(() => {
+          const duration = Date.now() - startTime;
+          console.log(`[PrismaService] Database connected successfully in ${duration}ms`);
+        }),
         new Promise((_, reject) => 
           setTimeout(() => {
-            reject(new Error('Database connection timeout after 10 seconds. Check DATABASE_URL and database accessibility.'));
-          }, 10000)
+            const duration = Date.now() - startTime;
+            reject(new Error(`Database connection timeout after ${duration}ms. Check DATABASE_URL and database accessibility.`));
+          }, 5000)
         ),
       ]);
-      console.log('PrismaService: Database connected successfully');
     } catch (error) {
-      console.error('PrismaService: Database connection failed:', error);
+      console.error('[PrismaService] Database connection failed:', error);
+      console.error('[PrismaService] Error details:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }

@@ -74,44 +74,64 @@ export default async function handler(req: any, res: any) {
   // Initialize handler on first request
   if (!cachedHandler && !isInitializing) {
     isInitializing = true;
-    console.log('Starting NestJS app initialization...');
-    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
+    const initStartTime = Date.now();
+    console.log('[Handler] Starting NestJS app initialization...');
+    console.log('[Handler] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.log('[Handler] NODE_ENV:', process.env.NODE_ENV);
     
     initializationPromise = Promise.race([
       (async () => {
-        // Lazy import createNestApp to avoid hanging during module load
-        console.log('=== LAZY IMPORTING createNestApp ===');
-        // Use .js extension for TypeScript moduleResolution compatibility
-        const { createNestApp } = await import('../src/main.js');
-        console.log('=== createNestApp imported successfully ===');
-        return createNestApp();
-      })().then((app) => {
-        console.log('NestJS app created, getting Express instance...');
-        const expressApp = app.getHttpAdapter().getInstance();
-        cachedHandler = serverless(expressApp);
-        isInitializing = false;
-        initializationPromise = null;
-        console.log('Serverless handler created successfully');
-        return cachedHandler;
-      }),
-      // Timeout after 20 seconds (Vercel free tier has 10s, but we'll try 20s for pro)
+        try {
+          // Lazy import createNestApp to avoid hanging during module load
+          console.log('[Handler] Step 1: Importing createNestApp...');
+          const importStartTime = Date.now();
+          const { createNestApp } = await import('../src/main.js');
+          console.log(`[Handler] Step 1 complete: createNestApp imported in ${Date.now() - importStartTime}ms`);
+          
+          console.log('[Handler] Step 2: Calling createNestApp()...');
+          const createStartTime = Date.now();
+          const app = await createNestApp();
+          console.log(`[Handler] Step 2 complete: NestJS app created in ${Date.now() - createStartTime}ms`);
+          
+          console.log('[Handler] Step 3: Getting Express instance...');
+          const expressApp = app.getHttpAdapter().getInstance();
+          console.log('[Handler] Step 3 complete: Express instance obtained');
+          
+          console.log('[Handler] Step 4: Creating serverless handler...');
+          cachedHandler = serverless(expressApp);
+          console.log(`[Handler] Step 4 complete: Serverless handler created. Total init time: ${Date.now() - initStartTime}ms`);
+          
+          isInitializing = false;
+          initializationPromise = null;
+          return cachedHandler;
+        } catch (stepError) {
+          console.error('[Handler] Error during initialization steps:', stepError);
+          throw stepError;
+        }
+      })(),
+      // Timeout after 15 seconds (Vercel free tier has 10s timeout)
       new Promise((_, reject) => 
         setTimeout(() => {
-          reject(new Error('Initialization timeout after 20 seconds. Check database connection and environment variables.'));
-        }, 20000)
+          const duration = Date.now() - initStartTime;
+          reject(new Error(`Initialization timeout after ${duration}ms. Check database connection and environment variables.`));
+        }, 15000) // Reduced to 15 seconds
       ),
     ]).catch((error) => {
       isInitializing = false;
       initError = error;
       initializationPromise = null;
-      console.error('Initialization error:', error);
+      console.error('[Handler] Initialization error caught:', error);
+      console.error('[Handler] Error message:', error instanceof Error ? error.message : String(error));
+      console.error('[Handler] Error stack:', error instanceof Error ? error.stack : 'No stack');
       throw error;
     });
 
     try {
+      console.log('[Handler] Waiting for initialization promise...');
       await initializationPromise;
+      console.log('[Handler] Initialization promise resolved successfully');
     } catch (error) {
+      console.error('[Handler] Initialization promise rejected:', error);
       return res.status(500).json({
         error: 'Server initialization failed',
         message: error instanceof Error ? error.message : 'Unknown error',

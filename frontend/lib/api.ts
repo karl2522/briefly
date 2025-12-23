@@ -46,16 +46,35 @@ class ApiClient {
    */
   private async fetchCsrfToken(): Promise<void> {
     try {
+      console.log(`[API] Fetching CSRF token from ${this.baseURL}/csrf-token`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await fetch(`${this.baseURL}/csrf-token`, {
         method: 'GET',
         credentials: 'include',
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        console.error(`[API] CSRF token fetch failed: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
       const data = await response.json();
       if (data.success && data.data?.csrfToken) {
         this.csrfToken = data.data.csrfToken;
+        console.log('[API] CSRF token fetched successfully');
+      } else {
+        console.warn('[API] CSRF token response missing token:', data);
       }
     } catch (error) {
-      console.error('Failed to fetch CSRF token:', error);
+      console.error('[API] Failed to fetch CSRF token:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('[API] CSRF token fetch timed out');
+      }
     }
   }
 
@@ -95,9 +114,36 @@ class ApiClient {
       headers,
     };
 
+    console.log(`[API] ${method} ${url}`, { needsCsrf, hasCsrfToken: !!csrfToken });
+
     try {
-      const response = await fetch(url, config);
-      const data = await response.json();
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const response = await fetch(url, {
+        ...config,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log(`[API] Response status: ${response.status} for ${url}`);
+      
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error(`[API] Non-JSON response for ${url}:`, text);
+        return {
+          success: false,
+          error: `Invalid response format: ${text.substring(0, 100)}`,
+        };
+      }
 
       if (!response.ok) {
         // If 401 Unauthorized, try to refresh token (max 1 retry)
@@ -156,9 +202,24 @@ class ApiClient {
         data: data as T,
       };
     } catch (error) {
+      console.error(`[API] Request failed for ${url}:`, error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          return {
+            success: false,
+            error: 'Request timeout. Please check your connection and try again.',
+          };
+        }
+        return {
+          success: false,
+          error: error.message || 'Network error occurred',
+        };
+      }
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Network error occurred',
+        error: 'Network error occurred',
       };
     }
   }

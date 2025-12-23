@@ -15,8 +15,14 @@ const cookieParser = require('cookie-parser');
  * This function is used both for local development and serverless deployment
  */
 export async function createNestApp(): Promise<INestApplication> {
+  console.log('[createNestApp] Step 1: Creating NestJS application...');
+  const createStartTime = Date.now();
   const app = await NestFactory.create(AppModule);
+  console.log(`[createNestApp] Step 1 complete: App created in ${Date.now() - createStartTime}ms`);
+  
+  console.log('[createNestApp] Step 2: Getting ConfigService...');
   const configService = app.get(ConfigService);
+  console.log('[createNestApp] Step 2 complete: ConfigService obtained');
 
   // Security - Configure Helmet with proper CSP and security headers
   const isProduction = configService.get<string>('app.nodeEnv') === 'production';
@@ -144,8 +150,11 @@ export async function createNestApp(): Promise<INestApplication> {
   app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
 
   // Initialize the app (don't call listen() for serverless)
+  console.log('[createNestApp] Step 7: Initializing app...');
+  const initStartTime = Date.now();
   await app.init();
-
+  console.log(`[createNestApp] Step 7 complete: App initialized in ${Date.now() - initStartTime}ms`);
+  console.log('[createNestApp] All steps complete, returning app');
   return app;
 }
 
