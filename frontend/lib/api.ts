@@ -316,8 +316,8 @@ class ApiClient {
     });
   }
 
-  async generateQuiz(content: string, numberOfQuestions?: number, difficulty?: 'easy' | 'medium' | 'hard'): Promise<ApiResponse<{ quiz: any[]; count: number }>> {
-    return this.request<{ quiz: any[]; count: number }>('/ai/quiz', {
+  async generateQuiz(content: string, numberOfQuestions?: number, difficulty?: 'easy' | 'medium' | 'hard'): Promise<ApiResponse<{ quiz: any[]; count: number; quizSetId?: string }>> {
+    return this.request<{ quiz: any[]; count: number; quizSetId?: string }>('/ai/quiz', {
       method: 'POST',
       body: JSON.stringify({ content, numberOfQuestions, difficulty }),
     });
