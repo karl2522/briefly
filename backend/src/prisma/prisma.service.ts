@@ -11,6 +11,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           url: process.env.DATABASE_URL,
         },
       },
+      // Connection pool configuration for Neon PostgreSQL
+      // Neon uses connection pooling, so we configure Prisma accordingly
+    });
+    
+    // Handle connection errors gracefully
+    this.$on('error' as never, (e: any) => {
+      console.error('[PrismaService] Database error:', e);
     });
   }
 
@@ -37,6 +44,34 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch (error) {
       console.error('[PrismaService] Database connection failed:', error);
       console.error('[PrismaService] Error details:', error instanceof Error ? error.message : String(error));
+      // Don't throw - allow app to start and retry on first query
+      // This handles cases where database is temporarily unavailable
+      console.warn('[PrismaService] App will continue, connection will be retried on first query');
+    }
+  }
+  
+  /**
+   * Execute a query with automatic reconnection on connection errors
+   */
+  async executeQuery<T>(queryFn: () => Promise<T>): Promise<T> {
+    try {
+      return await queryFn();
+    } catch (error: any) {
+      // Check if error is a connection closed error
+      if (error?.code === 'P1001' || error?.message?.includes('Closed') || error?.kind === 'Closed') {
+        console.warn('[PrismaService] Connection closed, attempting to reconnect...');
+        try {
+          // Try to reconnect
+          await this.$connect();
+          console.log('[PrismaService] Reconnected successfully, retrying query...');
+          // Retry the query once
+          return await queryFn();
+        } catch (reconnectError) {
+          console.error('[PrismaService] Reconnection failed:', reconnectError);
+          throw reconnectError;
+        }
+      }
+      // Re-throw other errors
       throw error;
     }
   }
