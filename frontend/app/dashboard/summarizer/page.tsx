@@ -7,8 +7,6 @@ import { apiClient } from "@/lib/api"
 import { Check, ChevronDown, Clock, Copy, FileText, History, Loader2, Plus, Sparkles, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-const STORAGE_KEY = "briefly_summary_history"
-
 interface SummaryHistory {
     id: string
     text: string
@@ -28,6 +26,7 @@ export default function SummarizerPage() {
     const [originalLength, setOriginalLength] = useState(0)
     const [summaryLength, setSummaryLength] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isProcessingFile, setIsProcessingFile] = useState(false)
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
@@ -37,23 +36,33 @@ export default function SummarizerPage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const historyDropdownRef = useRef<HTMLDivElement>(null)
 
-    // Load history on mount
+    // Load history from API
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadSummaries = async () => {
+            setIsLoadingHistory(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    // Sort by date, most recent first
-                    const sorted = parsed.sort((a: SummaryHistory, b: SummaryHistory) => 
-                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                    )
-                    setHistory(sorted)
+                const response = await apiClient.getSummaries()
+                if (response.success && response.data) {
+                    const summaries: SummaryHistory[] = response.data.map((sum: any) => ({
+                        id: sum.id,
+                        text: sum.text,
+                        summary: sum.summary,
+                        length: sum.length,
+                        originalLength: sum.originalLength,
+                        summaryLength: sum.summaryLength,
+                        createdAt: sum.createdAt,
+                    }))
+                    setHistory(summaries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                } else {
+                    console.error("Failed to load summaries:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load summary history:", err)
+                console.error("Error loading summaries:", err)
+            } finally {
+                setIsLoadingHistory(false)
             }
         }
+        loadSummaries()
     }, [])
 
     // Close dropdown when clicking outside
@@ -237,20 +246,20 @@ export default function SummarizerPage() {
                 setOriginalLength(origLength)
                 setSummaryLength(summLength)
 
-                // Save to history
-                const historyItem: SummaryHistory = {
-                    id: Date.now().toString(),
-                    text: text.trim(),
-                    summary: summaryText,
-                    length,
-                    originalLength: origLength,
-                    summaryLength: summLength,
-                    createdAt: new Date().toISOString(),
+                // Refresh history from API
+                const historyResponse = await apiClient.getSummaries()
+                if (historyResponse.success && historyResponse.data) {
+                    const summaries: SummaryHistory[] = historyResponse.data.map((sum: any) => ({
+                        id: sum.id,
+                        text: sum.text,
+                        summary: sum.summary,
+                        length: sum.length,
+                        originalLength: sum.originalLength,
+                        summaryLength: sum.summaryLength,
+                        createdAt: sum.createdAt,
+                    }))
+                    setHistory(summaries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
                 }
-
-                const updatedHistory = [historyItem, ...history].slice(0, 50) // Keep last 50 items
-                setHistory(updatedHistory)
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory))
             } else {
                 setError(response.error || "Failed to summarize text")
             }

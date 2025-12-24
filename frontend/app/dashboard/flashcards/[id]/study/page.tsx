@@ -2,6 +2,7 @@
 
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
+import { apiClient } from "@/lib/api"
 import { updateStudyStreak } from "@/lib/streak"
 import { ArrowLeft, ArrowLeft as ArrowLeftIcon, ArrowRight, BookOpen, Brain, Calendar, GraduationCap, ListOrdered, RotateCcw, Shuffle } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
@@ -19,8 +20,6 @@ interface FlashcardSet {
     createdAt: string
 }
 
-const STORAGE_KEY = "briefly_flashcard_sets"
-
 export default function StudyModePage() {
     const router = useRouter()
     const params = useParams()
@@ -33,24 +32,31 @@ export default function StudyModePage() {
     const [sortMode, setSortMode] = useState<"original" | "random">("original")
 
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadFlashcardSet = async () => {
+            setIsLoading(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    const foundSet = parsed.find((s: FlashcardSet) => s.id === setId)
-                    if (foundSet) {
-                        setSet(foundSet)
-                        setStudyCards([...foundSet.flashcards])
-                        // count entering study mode as a study session
-                        updateStudyStreak()
+                const response = await apiClient.getFlashcardSet(setId)
+                if (response.success && response.data) {
+                    const flashcardSet: FlashcardSet = {
+                        id: response.data.id,
+                        topic: response.data.topic,
+                        flashcards: response.data.flashcards || [],
+                        createdAt: response.data.createdAt,
                     }
+                    setSet(flashcardSet)
+                    setStudyCards([...flashcardSet.flashcards])
+                    // count entering study mode as a study session
+                    updateStudyStreak()
+                } else {
+                    console.error("Failed to load flashcard set:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load flashcard set:", err)
+                console.error("Error loading flashcard set:", err)
+            } finally {
+                setIsLoading(false)
             }
         }
-        setIsLoading(false)
+        loadFlashcardSet()
     }, [setId])
 
     const shuffleCards = () => {
@@ -442,6 +448,8 @@ export default function StudyModePage() {
         </DashboardLayout>
     )
 }
+
+
 
 
 

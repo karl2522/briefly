@@ -25,8 +25,6 @@ interface QuizSet {
     createdAt: string
 }
 
-const STORAGE_KEY = "briefly_quiz_sets"
-
 export default function QuizPage() {
     const router = useRouter()
     const [content, setContent] = useState("")
@@ -34,25 +32,40 @@ export default function QuizPage() {
     const [numberOfQuestions, setNumberOfQuestions] = useState(5)
     const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium")
     const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isProcessingFile, setIsProcessingFile] = useState(false)
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
     const [savedQuizzes, setSavedQuizzes] = useState<QuizSet[]>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Load saved quizzes on mount
+    // Load saved quizzes from API
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadQuizSets = async () => {
+            setIsLoadingQuizzes(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    setSavedQuizzes(parsed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                const response = await apiClient.getQuizSets()
+                if (response.success && response.data) {
+                    // Transform API response to match component interface
+                    const quizzes: QuizSet[] = response.data.map((set: any) => ({
+                        id: set.id,
+                        topic: set.topic,
+                        quiz: set.questions || [],
+                        numberOfQuestions: set.numberOfQuestions,
+                        difficulty: set.difficulty,
+                        createdAt: set.createdAt,
+                    }))
+                    setSavedQuizzes(quizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                } else {
+                    console.error("Failed to load quiz sets:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load saved quizzes:", err)
+                console.error("Error loading quiz sets:", err)
+            } finally {
+                setIsLoadingQuizzes(false)
             }
         }
+        loadQuizSets()
     }, [])
 
     const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -217,11 +230,30 @@ export default function QuizPage() {
             const response = await apiClient.generateQuiz(content, numberOfQuestions, difficulty)
             if (response.success && response.data) {
                 const generatedQuiz = response.data.quiz
+                const quizSetId = response.data.quizSetId
+                
                 // Store in sessionStorage for preview page
                 sessionStorage.setItem("preview_quiz", JSON.stringify(generatedQuiz))
                 sessionStorage.setItem("preview_quiz_content", content)
                 sessionStorage.setItem("preview_quiz_topic", topic || "")
                 sessionStorage.setItem("preview_quiz_numberOfQuestions", numberOfQuestions.toString())
+                if (quizSetId) {
+                    sessionStorage.setItem("preview_quizSetId", quizSetId)
+                }
+                
+                // Refresh the quiz sets list
+                const setsResponse = await apiClient.getQuizSets()
+                if (setsResponse.success && setsResponse.data) {
+                    const quizzes: QuizSet[] = setsResponse.data.map((set: any) => ({
+                        id: set.id,
+                        topic: set.topic,
+                        quiz: set.questions || [],
+                        numberOfQuestions: set.numberOfQuestions,
+                        difficulty: set.difficulty,
+                        createdAt: set.createdAt,
+                    }))
+                    setSavedQuizzes(quizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                }
                 sessionStorage.setItem("preview_quiz_difficulty", difficulty)
                 // Redirect to preview page
                 router.push(`/dashboard/quiz/preview?quiz=${encodeURIComponent(JSON.stringify(generatedQuiz))}&topic=${encodeURIComponent(topic || "")}&numberOfQuestions=${numberOfQuestions}&difficulty=${difficulty}`)
@@ -417,11 +449,11 @@ export default function QuizPage() {
                         </CardHeader>
                         <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
                             <div className="space-y-2 flex-1 overflow-y-auto pr-2">
-                                {isLoading ? (
+                                {isLoadingQuizzes ? (
                                     <div className="flex flex-col items-center justify-center py-12 text-center">
                                         <Loader2 className="mb-4 size-8 animate-spin text-primary" />
-                                        <h3 className="mb-2 text-lg font-semibold text-foreground">Generating quiz...</h3>
-                                        <p className="text-sm text-muted-foreground">Please wait while we create your quiz</p>
+                                        <h3 className="mb-2 text-lg font-semibold text-foreground">Loading quiz sets...</h3>
+                                        <p className="text-sm text-muted-foreground">Please wait</p>
                                     </div>
                                 ) : savedQuizzes.length > 0 ? (
                                     savedQuizzes.map((quizSet) => (

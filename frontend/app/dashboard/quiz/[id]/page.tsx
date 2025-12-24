@@ -3,6 +3,7 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { apiClient } from "@/lib/api"
 import { updateStudyStreak } from "@/lib/streak"
 import {
     closestCenter,
@@ -39,8 +40,6 @@ interface QuizSet {
     difficulty: "easy" | "medium" | "hard"
     createdAt: string
 }
-
-const STORAGE_KEY = "briefly_quiz_sets"
 
 interface SortableQuizQuestionProps {
     question: QuizQuestion
@@ -259,41 +258,49 @@ export default function QuizDetailPage() {
     )
 
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadQuizSet = async () => {
+            setIsLoading(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    const foundQuiz = parsed.find((q: QuizSet) => q.id === quizId)
-                    if (foundQuiz) {
-                        setQuizSet(foundQuiz)
+                const response = await apiClient.getQuizSet(quizId)
+                if (response.success && response.data) {
+                    const quiz: QuizSet = {
+                        id: response.data.id,
+                        topic: response.data.topic,
+                        quiz: response.data.questions || [],
+                        numberOfQuestions: response.data.numberOfQuestions,
+                        difficulty: response.data.difficulty,
+                        createdAt: response.data.createdAt,
                     }
+                    setQuizSet(quiz)
+                } else {
+                    console.error("Failed to load quiz set:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load quiz:", err)
+                console.error("Error loading quiz set:", err)
+            } finally {
+                setIsLoading(false)
             }
         }
-        setIsLoading(false)
+        loadQuizSet()
     }, [quizId])
 
-    const saveQuizToStorage = (updatedQuiz: QuizSet) => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    const updated = parsed.map((q: QuizSet) =>
-                        q.id === quizId ? updatedQuiz : q
-                    )
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-                }
-            } catch (err) {
-                console.error("Failed to save quiz:", err)
+    const saveQuizToAPI = async (updatedQuiz: QuizSet) => {
+        try {
+            const response = await apiClient.updateQuizSet(quizId, {
+                topic: updatedQuiz.topic,
+                numberOfQuestions: updatedQuiz.numberOfQuestions,
+                difficulty: updatedQuiz.difficulty,
+                questions: updatedQuiz.quiz,
+            })
+            if (!response.success) {
+                console.error("Failed to save quiz set:", response.error)
             }
+        } catch (err) {
+            console.error("Error saving quiz set:", err)
         }
     }
 
-    const handleDragEnd = (event: DragEndEvent) => {
+    const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event
 
         if (over && active.id !== over.id && quizSet) {
@@ -303,7 +310,7 @@ export default function QuizDetailPage() {
             const newQuiz = arrayMove(quizSet.quiz, oldIndex, newIndex)
             const updatedQuiz = { ...quizSet, quiz: newQuiz }
             setQuizSet(updatedQuiz)
-            saveQuizToStorage(updatedQuiz)
+            await saveQuizToAPI(updatedQuiz)
         }
     }
 
@@ -316,7 +323,7 @@ export default function QuizDetailPage() {
         }
     }
 
-    const handleSave = (index: number, question: string, options: string[], correctAnswer: number) => {
+    const handleSave = async (index: number, question: string, options: string[], correctAnswer: number) => {
         if (quizSet && question.trim() && options.every(opt => opt.trim()) && options.length >= 2) {
             const newQuiz = [...quizSet.quiz]
             newQuiz[index] = {
@@ -326,7 +333,7 @@ export default function QuizDetailPage() {
             }
             const updatedQuiz = { ...quizSet, quiz: newQuiz }
             setQuizSet(updatedQuiz)
-            saveQuizToStorage(updatedQuiz)
+            await saveQuizToAPI(updatedQuiz)
             setEditingIndex(null)
             setEditedQuestion("")
             setEditedOptions([])
@@ -637,6 +644,8 @@ export default function QuizDetailPage() {
         </DashboardLayout>
     )
 }
+
+
 
 
 

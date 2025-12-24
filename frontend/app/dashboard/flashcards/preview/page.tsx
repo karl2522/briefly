@@ -3,6 +3,7 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { apiClient } from "@/lib/api"
 import {
     ArrowLeft,
     BookOpen,
@@ -20,15 +21,6 @@ interface Flashcard {
     answer: string
 }
 
-interface FlashcardSet {
-    id: string
-    topic: string
-    flashcards: Flashcard[]
-    createdAt: string
-}
-
-const STORAGE_KEY = "briefly_flashcard_sets"
-
 function FlashcardPreviewContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -43,6 +35,9 @@ function FlashcardPreviewContent() {
         // Get flashcards and topic from URL params or sessionStorage
         const flashcardsParam = searchParams.get("flashcards")
         const topicParam = searchParams.get("topic")
+        
+        // Check if flashcardSetId exists (already saved from generation)
+        const flashcardSetId = sessionStorage.getItem("preview_flashcardSetId")
 
         if (flashcardsParam) {
             try {
@@ -72,6 +67,12 @@ function FlashcardPreviewContent() {
         if (topicParam) {
             setTopic(decodeURIComponent(topicParam))
         }
+        
+        // If already saved, mark as saved
+        if (flashcardSetId) {
+            setIsSaved(true)
+            setSavedSetId(flashcardSetId)
+        }
     }, [searchParams])
 
     const handleSave = async () => {
@@ -81,23 +82,31 @@ function FlashcardPreviewContent() {
 
         setIsSaving(true)
         
-        // Add a small delay to show loading state (simulates async operation)
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
         try {
-            const newSet: FlashcardSet = {
-                id: Date.now().toString(),
-                topic: topic || "Untitled",
-                flashcards,
-                createdAt: new Date().toISOString(),
+            // Check if already saved (from generation)
+            const existingId = sessionStorage.getItem("preview_flashcardSetId")
+            
+            if (existingId) {
+                // Already saved, just update the ID state
+                setSavedSetId(existingId)
+            } else {
+                // Create new flashcard set via API
+                const response = await apiClient.createFlashcardSet({
+                    topic: topic || "Untitled",
+                    flashcards,
+                })
+                
+                if (response.success && response.data) {
+                    setSavedSetId(response.data.id)
+                    // Clear sessionStorage after saving
+                    sessionStorage.removeItem("preview_flashcards")
+                    sessionStorage.removeItem("preview_topic")
+                } else {
+                    console.error("Failed to save flashcard set:", response.error)
+                    setIsSaving(false)
+                    return
+                }
             }
-
-            const saved = localStorage.getItem(STORAGE_KEY)
-            const existingSets = saved ? JSON.parse(saved) : []
-            const updatedSets = [newSet, ...existingSets]
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSets))
-
-            setSavedSetId(newSet.id)
             
             // Show success state briefly
             setShowSuccess(true)
@@ -109,6 +118,7 @@ function FlashcardPreviewContent() {
             // Clear sessionStorage
             sessionStorage.removeItem("preview_flashcards")
             sessionStorage.removeItem("preview_topic")
+            sessionStorage.removeItem("preview_flashcardSetId")
             
             // Update URL to remove query params after saving
             router.replace("/dashboard/flashcards/preview")
@@ -122,25 +132,6 @@ function FlashcardPreviewContent() {
     const handleStudyMode = () => {
         if (savedSetId) {
             router.push(`/dashboard/flashcards/${savedSetId}/study`)
-        } else {
-            // If somehow savedSetId is not set, try to find it from localStorage
-            const saved = localStorage.getItem(STORAGE_KEY)
-            if (saved) {
-                try {
-                    const sets = JSON.parse(saved)
-                    // Find the most recent set with matching topic and flashcards
-                    const matchingSet = sets.find((s: FlashcardSet) => 
-                        s.topic === (topic || "Untitled") && 
-                        s.flashcards.length === flashcards.length
-                    )
-                    if (matchingSet) {
-                        router.push(`/dashboard/flashcards/${matchingSet.id}/study`)
-                        return
-                    }
-                } catch (err) {
-                    console.error("Failed to find saved set:", err)
-                }
-            }
         }
     }
 

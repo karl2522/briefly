@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString, IsUrl, Matches, MinLength, ValidateIf, validateSync } from 'class-validator';
+import { safeLog } from '../common/utils/logger.util';
 
 enum Environment {
   Development = 'development',
@@ -120,9 +121,9 @@ export function validate(config: Record<string, unknown>) {
     const maskedUrl = dbUrl.length > 20 
       ? `${dbUrl.substring(0, 10)}...${dbUrl.substring(dbUrl.length - 10)}` 
       : '***';
-    console.log(`[Env Validation] DATABASE_URL present: ${maskedUrl}, length: ${dbUrl.length}, starts with: ${dbUrl.substring(0, 10)}`);
+    safeLog.log(`[Env Validation] DATABASE_URL present: ${maskedUrl}, length: ${dbUrl.length}, starts with: ${dbUrl.substring(0, 10)}`);
   } else {
-    console.log('[Env Validation] DATABASE_URL is missing or empty');
+    safeLog.error('[Env Validation] DATABASE_URL is missing or empty');
   }
   
   const validatedConfig = plainToInstance(EnvironmentVariables, cleanedConfig, {

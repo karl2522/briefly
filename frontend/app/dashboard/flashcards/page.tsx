@@ -22,32 +22,43 @@ interface FlashcardSet {
     createdAt: string
 }
 
-const STORAGE_KEY = "briefly_flashcard_sets"
-
 export default function FlashcardsPage() {
     const router = useRouter()
     const [text, setText] = useState("")
     const [topic, setTopic] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingSets, setIsLoadingSets] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [savedSets, setSavedSets] = useState<FlashcardSet[]>([])
     const [isProcessingFile, setIsProcessingFile] = useState(false)
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Load saved flashcard sets on mount
+    // Load saved flashcard sets from API
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadFlashcardSets = async () => {
+            setIsLoadingSets(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    setSavedSets(parsed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                const response = await apiClient.getFlashcardSets()
+                if (response.success && response.data) {
+                    // Transform API response to match component interface
+                    const sets: FlashcardSet[] = response.data.map((set: any) => ({
+                        id: set.id,
+                        topic: set.topic,
+                        flashcards: set.flashcards || [],
+                        createdAt: set.createdAt,
+                    }))
+                    setSavedSets(sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                } else {
+                    console.error("Failed to load flashcard sets:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load saved flashcard sets:", err)
+                console.error("Error loading flashcard sets:", err)
+            } finally {
+                setIsLoadingSets(false)
             }
         }
+        loadFlashcardSets()
     }, [])
 
 
@@ -64,9 +75,27 @@ export default function FlashcardsPage() {
             const response = await apiClient.generateFlashcards(text, topic || undefined)
             if (response.success && response.data) {
                 const generatedFlashcards = response.data.flashcards
+                const flashcardSetId = response.data.flashcardSetId
+                
                 // Store in sessionStorage for preview page
                 sessionStorage.setItem("preview_flashcards", JSON.stringify(generatedFlashcards))
                 sessionStorage.setItem("preview_topic", topic || "")
+                if (flashcardSetId) {
+                    sessionStorage.setItem("preview_flashcardSetId", flashcardSetId)
+                }
+                
+                // Refresh the sets list
+                const setsResponse = await apiClient.getFlashcardSets()
+                if (setsResponse.success && setsResponse.data) {
+                    const sets: FlashcardSet[] = setsResponse.data.map((set: any) => ({
+                        id: set.id,
+                        topic: set.topic,
+                        flashcards: set.flashcards || [],
+                        createdAt: set.createdAt,
+                    }))
+                    setSavedSets(sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                }
+                
                 // Redirect to preview page
                 router.push(`/dashboard/flashcards/preview?flashcards=${encodeURIComponent(JSON.stringify(generatedFlashcards))}&topic=${encodeURIComponent(topic || "")}`)
             } else {
@@ -377,11 +406,11 @@ export default function FlashcardsPage() {
                         </CardHeader>
                         <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
                             <div className="space-y-2 flex-1 overflow-y-auto pr-2">
-                                {isLoading ? (
+                                {isLoadingSets ? (
                                     <div className="flex flex-col items-center justify-center py-12 text-center">
                                         <Loader2 className="mb-4 size-8 animate-spin text-primary" />
-                                        <h3 className="mb-2 text-lg font-semibold text-foreground">Generating flashcards...</h3>
-                                        <p className="text-sm text-muted-foreground">Please wait while we create your flashcards</p>
+                                        <h3 className="mb-2 text-lg font-semibold text-foreground">Loading flashcard sets...</h3>
+                                        <p className="text-sm text-muted-foreground">Please wait</p>
                                     </div>
                                 ) : savedSets.length > 0 ? (
                                     savedSets.map((set) => (

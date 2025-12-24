@@ -322,9 +322,143 @@ class ApiClient {
       body: JSON.stringify({ content, numberOfQuestions, difficulty }),
     });
   }
+
+  // Flashcard Sets endpoints
+  async getFlashcardSets(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/flashcard-sets', {
+      method: 'GET',
+    });
+  }
+
+  async getFlashcardSet(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/flashcard-sets/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async createFlashcardSet(data: { topic: string; flashcards: Array<{ question: string; answer: string }> }): Promise<ApiResponse<any>> {
+    return this.request<any>('/flashcard-sets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFlashcardSet(id: string, data: { topic?: string; flashcards?: Array<{ question: string; answer: string }> }): Promise<ApiResponse<any>> {
+    return this.request<any>(`/flashcard-sets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteFlashcardSet(id: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>(`/flashcard-sets/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Quiz Sets endpoints
+  async getQuizSets(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/quiz-sets', {
+      method: 'GET',
+    });
+  }
+
+  async getQuizSet(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/quiz-sets/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async createQuizSet(data: { topic: string; numberOfQuestions: number; difficulty: 'easy' | 'medium' | 'hard'; questions: Array<{ question: string; options: string[]; correctAnswer: number }> }): Promise<ApiResponse<any>> {
+    return this.request<any>('/quiz-sets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateQuizSet(id: string, data: { topic?: string; numberOfQuestions?: number; difficulty?: 'easy' | 'medium' | 'hard'; questions?: Array<{ question: string; options: string[]; correctAnswer: number }> }): Promise<ApiResponse<any>> {
+    return this.request<any>(`/quiz-sets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteQuizSet(id: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>(`/quiz-sets/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Study Guides endpoints
+  async getStudyGuides(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/study-guides', {
+      method: 'GET',
+    });
+  }
+
+  async getStudyGuide(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/study-guides/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async createStudyGuide(data: { content: string; subject?: string; studyGuide: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('/study-guides', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateStudyGuide(id: string, data: { content?: string; subject?: string; studyGuide?: string }): Promise<ApiResponse<any>> {
+    return this.request<any>(`/study-guides/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteStudyGuide(id: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>(`/study-guides/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Summaries endpoints
+  async getSummaries(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/summaries', {
+      method: 'GET',
+    });
+  }
+
+  async getSummary(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/summaries/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async createSummary(data: { text: string; summary: string; length: 'short' | 'medium' | 'long'; originalLength: number; summaryLength: number }): Promise<ApiResponse<any>> {
+    return this.request<any>('/summaries', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSummary(id: string, data: { text?: string; summary?: string; length?: 'short' | 'medium' | 'long'; originalLength?: number; summaryLength?: number }): Promise<ApiResponse<any>> {
+    return this.request<any>(`/summaries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSummary(id: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>(`/summaries/${id}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
+
+
 
 
 

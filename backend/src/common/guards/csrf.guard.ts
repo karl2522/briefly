@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../../auth/decorators/public.decorator';
+import { safeLog } from '../utils/logger.util';
 
 @Injectable()
 export class CsrfGuard implements CanActivate {
@@ -37,7 +38,7 @@ export class CsrfGuard implements CanActivate {
     const csrfCookie = request.cookies?.['csrf-token'];
     
     // Debug logging for CSRF token issues
-    console.log('[CSRF Guard] Checking CSRF token:', {
+    safeLog.log('[CSRF Guard] Checking CSRF token:', {
       method: request.method,
       url: request.url,
       hasHeaderToken: !!csrfToken,
@@ -50,7 +51,7 @@ export class CsrfGuard implements CanActivate {
     
     // Validate CSRF token
     if (!csrfToken || !csrfCookie || csrfToken !== csrfCookie) {
-      console.error('[CSRF Guard] CSRF token validation failed:', {
+      safeLog.error('[CSRF Guard] CSRF token validation failed:', {
         hasHeaderToken: !!csrfToken,
         hasCookieToken: !!csrfCookie,
         tokensMatch: csrfToken === csrfCookie,
@@ -58,11 +59,13 @@ export class CsrfGuard implements CanActivate {
       throw new ForbiddenException('Invalid CSRF token');
     }
     
-    console.log('[CSRF Guard] CSRF token validated successfully');
+    safeLog.log('[CSRF Guard] CSRF token validated successfully');
 
     return true;
   }
 }
+
+
 
 
 

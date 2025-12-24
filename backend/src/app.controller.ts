@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import type { Response } from 'express';
 import { AppService } from './app.service';
 import { Public } from './auth/decorators/public.decorator';
+import { safeLog } from './common/utils/logger.util';
 
 @Controller()
 export class AppController {
@@ -44,7 +45,7 @@ export class AppController {
       // NO domain attribute - cookies will be scoped to backend domain
     });
     
-    console.log('[CSRF Token] Setting cookie with options:', {
+    safeLog.log('[CSRF Token] Setting cookie with options:', {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',

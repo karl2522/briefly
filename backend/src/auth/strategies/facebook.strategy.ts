@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile, Strategy } from 'passport-facebook';
+import { safeLog } from '../../common/utils/logger.util';
 import { sanitizeName } from '../../common/utils/sanitize.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -76,7 +77,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       try {
         await this.prisma.$connect();
       } catch (connectError) {
-        console.warn('[FacebookStrategy] Connection check failed, continuing anyway:', connectError);
+        safeLog.warn('[FacebookStrategy] Connection check failed, continuing anyway:', connectError);
       }
       
       // Find user by email or facebookId (with retry on connection error)
@@ -93,7 +94,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       } catch (findError: any) {
         // If connection error, reconnect and retry once
         if (findError?.code === 'P1001' || findError?.message?.includes('Closed')) {
-          console.warn('[FacebookStrategy] Connection closed during findFirst, reconnecting...');
+          safeLog.warn('[FacebookStrategy] Connection closed during findFirst, reconnecting...');
           await this.prisma.$connect();
           user = await this.prisma.user.findFirst({
             where: {
@@ -124,7 +125,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
           } catch (createError: any) {
             // If connection error, reconnect and retry once
             if (createError?.code === 'P1001' || createError?.message?.includes('Closed')) {
-              console.warn('[FacebookStrategy] Connection closed during user creation, reconnecting...');
+              safeLog.warn('[FacebookStrategy] Connection closed during user creation, reconnecting...');
               await this.prisma.$connect();
               user = await this.prisma.user.create({
                 data: {
@@ -174,7 +175,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
           } catch (updateError: any) {
             // If connection error, reconnect and retry once
             if (updateError?.code === 'P1001' || updateError?.message?.includes('Closed')) {
-              console.warn('[FacebookStrategy] Connection closed during avatar update, reconnecting...');
+              safeLog.warn('[FacebookStrategy] Connection closed during avatar update, reconnecting...');
               await this.prisma.$connect();
               user = await this.prisma.user.update({
                 where: { id: user.id },
@@ -182,7 +183,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
               });
             } else {
               // Log but don't fail - avatar update is optional
-              console.warn('[FacebookStrategy] Failed to update avatar:', updateError);
+              safeLog.warn('[FacebookStrategy] Failed to update avatar:', updateError);
             }
           }
         }
@@ -200,6 +201,8 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
     }
   }
 }
+
+
 
 
 

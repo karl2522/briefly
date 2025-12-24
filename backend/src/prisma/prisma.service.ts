@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { safeLog } from '../common/utils/logger.util';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -17,7 +18,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     
     // Handle connection errors gracefully
     this.$on('error' as never, (e: any) => {
-      console.error('[PrismaService] Database error:', e);
+      safeLog.error('[PrismaService] Database error:', e);
     });
   }
 
@@ -25,14 +26,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // Connect to database when module initializes
     // Railway supports eager connections, no need for lazy loading
     try {
-      console.log('[PrismaService] Starting database connection...');
-      console.log('[PrismaService] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+      safeLog.log('[PrismaService] Starting database connection...');
+      safeLog.log('[PrismaService] DATABASE_URL exists:', !!process.env.DATABASE_URL);
       
       const startTime = Date.now();
       await Promise.race([
         this.$connect().then(() => {
           const duration = Date.now() - startTime;
-          console.log(`[PrismaService] Database connected successfully in ${duration}ms`);
+          safeLog.log(`[PrismaService] Database connected successfully in ${duration}ms`);
         }),
         new Promise((_, reject) => 
           setTimeout(() => {
@@ -42,11 +43,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         ),
       ]);
     } catch (error) {
-      console.error('[PrismaService] Database connection failed:', error);
-      console.error('[PrismaService] Error details:', error instanceof Error ? error.message : String(error));
+      safeLog.error('[PrismaService] Database connection failed:', error);
+      safeLog.error('[PrismaService] Error details:', error instanceof Error ? error.message : String(error));
       // Don't throw - allow app to start and retry on first query
       // This handles cases where database is temporarily unavailable
-      console.warn('[PrismaService] App will continue, connection will be retried on first query');
+      safeLog.warn('[PrismaService] App will continue, connection will be retried on first query');
     }
   }
   
@@ -59,15 +60,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch (error: any) {
       // Check if error is a connection closed error
       if (error?.code === 'P1001' || error?.message?.includes('Closed') || error?.kind === 'Closed') {
-        console.warn('[PrismaService] Connection closed, attempting to reconnect...');
+        safeLog.warn('[PrismaService] Connection closed, attempting to reconnect...');
         try {
           // Try to reconnect
           await this.$connect();
-          console.log('[PrismaService] Reconnected successfully, retrying query...');
+          safeLog.log('[PrismaService] Reconnected successfully, retrying query...');
           // Retry the query once
           return await queryFn();
         } catch (reconnectError) {
-          console.error('[PrismaService] Reconnection failed:', reconnectError);
+          safeLog.error('[PrismaService] Reconnection failed:', reconnectError);
           throw reconnectError;
         }
       }

@@ -3,6 +3,7 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { apiClient } from "@/lib/api"
 import { ArrowLeft, Check, GraduationCap, Loader2, Save, Target } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
@@ -12,17 +13,6 @@ interface QuizQuestion {
     options: string[]
     correctAnswer: number
 }
-
-interface QuizSet {
-    id: string
-    topic: string
-    quiz: QuizQuestion[]
-    numberOfQuestions: number
-    difficulty: "easy" | "medium" | "hard"
-    createdAt: string
-}
-
-const STORAGE_KEY = "briefly_quiz_sets"
 
 function QuizPreviewContent() {
     const router = useRouter()
@@ -90,6 +80,13 @@ function QuizPreviewContent() {
                 setDifficulty(stored as "easy" | "medium" | "hard")
             }
         }
+        
+        // Check if quizSetId exists (already saved from generation)
+        const quizSetId = sessionStorage.getItem("preview_quizSetId")
+        if (quizSetId) {
+            setIsSaved(true)
+            setSavedQuizId(quizSetId)
+        }
     }, [searchParams])
 
     const handleSave = async () => {
@@ -99,44 +96,49 @@ function QuizPreviewContent() {
 
         setIsSaving(true)
         
-        // Add a small delay to show loading state
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
         try {
-            // Generate a meaningful title from topic or content
-            const generateTitle = () => {
-                if (topic && topic.trim()) {
-                    return topic.trim()
-                }
-                // Extract title from first question if no topic
-                if (quiz.length > 0 && quiz[0].question) {
-                    const firstQuestion = quiz[0].question
-                    // Get first sentence or first 50 characters
-                    const firstSentence = firstQuestion.split(/[.!?]/)[0].trim()
-                    if (firstSentence.length > 0 && firstSentence.length <= 60) {
-                        return firstSentence
+            // Check if already saved (from generation)
+            const existingId = sessionStorage.getItem("preview_quizSetId")
+            
+            if (existingId) {
+                // Already saved, just update the ID state
+                setSavedQuizId(existingId)
+            } else {
+                // Generate a meaningful title from topic or content
+                const generateTitle = () => {
+                    if (topic && topic.trim()) {
+                        return topic.trim()
                     }
-                    return firstQuestion.substring(0, 50).trim() + "..."
+                    // Extract title from first question if no topic
+                    if (quiz.length > 0 && quiz[0].question) {
+                        const firstQuestion = quiz[0].question
+                        // Get first sentence or first 50 characters
+                        const firstSentence = firstQuestion.split(/[.!?]/)[0].trim()
+                        if (firstSentence.length > 0 && firstSentence.length <= 60) {
+                            return firstSentence
+                        }
+                        return firstQuestion.substring(0, 50).trim() + "..."
+                    }
+                    // Fallback
+                    return `Quiz - ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`
                 }
-                // Fallback
-                return `Quiz - ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`
+
+                // Create new quiz set via API
+                const response = await apiClient.createQuizSet({
+                    topic: generateTitle(),
+                    numberOfQuestions,
+                    difficulty,
+                    questions: quiz,
+                })
+                
+                if (response.success && response.data) {
+                    setSavedQuizId(response.data.id)
+                } else {
+                    console.error("Failed to save quiz set:", response.error)
+                    setIsSaving(false)
+                    return
+                }
             }
-
-            const newQuiz: QuizSet = {
-                id: Date.now().toString(),
-                topic: generateTitle(),
-                quiz,
-                numberOfQuestions,
-                difficulty,
-                createdAt: new Date().toISOString(),
-            }
-
-            const saved = localStorage.getItem(STORAGE_KEY)
-            const existingQuizzes = saved ? JSON.parse(saved) : []
-            const updatedQuizzes = [newQuiz, ...existingQuizzes]
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQuizzes))
-
-            setSavedQuizId(newQuiz.id)
             
             // Show success state briefly
             setShowSuccess(true)
@@ -151,6 +153,7 @@ function QuizPreviewContent() {
             sessionStorage.removeItem("preview_quiz_topic")
             sessionStorage.removeItem("preview_quiz_numberOfQuestions")
             sessionStorage.removeItem("preview_quiz_difficulty")
+            sessionStorage.removeItem("preview_quizSetId")
             
             // Update URL to remove query params after saving
             router.replace("/dashboard/quiz/preview")
@@ -164,27 +167,6 @@ function QuizPreviewContent() {
     const handleStudyMode = () => {
         if (savedQuizId) {
             router.push(`/dashboard/quiz/${savedQuizId}`)
-        } else {
-            // If somehow savedQuizId is not set, try to find it from localStorage
-            const saved = localStorage.getItem(STORAGE_KEY)
-            if (saved) {
-                try {
-                    const quizzes = JSON.parse(saved)
-                    // Find the most recent quiz with matching properties
-                    const matchingQuiz = quizzes.find((q: QuizSet) => 
-                        q.quiz.length === quiz.length &&
-                        q.numberOfQuestions === numberOfQuestions &&
-                        q.difficulty === difficulty &&
-                        (topic ? q.topic === topic : true)
-                    )
-                    if (matchingQuiz) {
-                        router.push(`/dashboard/quiz/${matchingQuiz.id}`)
-                        return
-                    }
-                } catch (err) {
-                    console.error("Failed to find saved quiz:", err)
-                }
-            }
         }
     }
 

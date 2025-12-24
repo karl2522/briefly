@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { safeLog } from '../../common/utils/logger.util';
 
 /**
  * Sets authentication tokens in httpOnly cookies
@@ -37,7 +38,7 @@ export function setAuthCookies(
     // Browser will send them automatically with credentials: 'include'
   };
   
-  console.log('[setAuthCookies] Setting cookies with options:', {
+  safeLog.log('[setAuthCookies] Setting cookies with options:', {
     httpOnly: cookieOptions.httpOnly,
     secure: cookieOptions.secure,
     sameSite: cookieOptions.sameSite,
@@ -52,7 +53,7 @@ export function setAuthCookies(
   // Set refresh token cookie (long-lived)
   res.cookie('refreshToken', refreshToken, cookieOptions);
   
-  console.log('[setAuthCookies] Cookies set successfully');
+  safeLog.log('[setAuthCookies] Cookies set successfully');
 }
 
 /**

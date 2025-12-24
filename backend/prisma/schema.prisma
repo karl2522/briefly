@@ -11,23 +11,27 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String?  // Nullable for OAuth users
-  name      String?
-  avatar    String?
-  
+  id       String  @id @default(cuid())
+  email    String  @unique
+  password String? // Nullable for OAuth users
+  name     String?
+  avatar   String?
+
   // OAuth providers
-  googleId  String?  @unique
+  googleId   String? @unique
   facebookId String? @unique
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   refreshTokens RefreshToken[]
-  
+  flashcardSets FlashcardSet[]
+  quizSets      QuizSet[]
+  studyGuides   StudyGuide[]
+  summaries     Summary[]
+
   @@map("users")
 }
 
@@ -37,24 +41,110 @@ model RefreshToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("refresh_tokens")
 }
 
-// Future models for study features
-// model StudySet {
-//   id        String   @id @default(cuid())
-//   title     String
-//   userId    String
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-//   
-//   @@map("study_sets")
-// }
+// Study Content Models
 
+model FlashcardSet {
+  id        String   @id @default(cuid())
+  userId    String
+  topic     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  flashcards Flashcard[]
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([createdAt])
+  @@map("flashcard_sets")
+}
+
+model Flashcard {
+  id             String   @id @default(cuid())
+  flashcardSetId String
+  question       String   @db.Text
+  answer         String   @db.Text
+  order          Int      @default(0) // For maintaining order
+  createdAt      DateTime @default(now())
+
+  flashcardSet FlashcardSet @relation(fields: [flashcardSetId], references: [id], onDelete: Cascade)
+
+  @@index([flashcardSetId])
+  @@index([order])
+  @@map("flashcards")
+}
+
+model QuizSet {
+  id                String   @id @default(cuid())
+  userId            String
+  topic             String
+  numberOfQuestions Int
+  difficulty        String // "easy" | "medium" | "hard"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  questions QuizQuestion[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("quiz_sets")
+}
+
+model QuizQuestion {
+  id            String   @id @default(cuid())
+  quizSetId     String
+  question      String   @db.Text
+  options       String[] // Array of option strings
+  correctAnswer Int // Index of correct option (0-based)
+  order         Int      @default(0) // For maintaining order
+  createdAt     DateTime @default(now())
+
+  quizSet QuizSet @relation(fields: [quizSetId], references: [id], onDelete: Cascade)
+
+  @@index([quizSetId])
+  @@index([order])
+  @@map("quiz_questions")
+}
+
+model StudyGuide {
+  id         String   @id @default(cuid())
+  userId     String
+  content    String   @db.Text // Original input
+  subject    String?
+  studyGuide String   @db.Text // Generated content
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("study_guides")
+}
+
+model Summary {
+  id             String   @id @default(cuid())
+  userId         String
+  text           String   @db.Text // Original text
+  summary        String   @db.Text // Generated summary
+  length         String // "short" | "medium" | "long"
+  originalLength Int
+  summaryLength  Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("summaries")
+}
 

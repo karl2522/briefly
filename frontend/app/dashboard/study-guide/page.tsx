@@ -7,12 +7,10 @@ import { apiClient } from "@/lib/api"
 import { BookOpen, Check, ChevronDown, Clock, Copy, Download, FileText, History, Loader2, Plus, Sparkles, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-const STORAGE_KEY = "briefly_study_guide_history"
-
 interface StudyGuideHistory {
     id: string
     content: string
-    subject: string
+    subject: string | null
     studyGuide: string
     createdAt: string
 }
@@ -24,6 +22,7 @@ export default function StudyGuidePage() {
     const [subject, setSubject] = useState("")
     const [studyGuide, setStudyGuide] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isProcessingFile, setIsProcessingFile] = useState(false)
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
@@ -33,23 +32,31 @@ export default function StudyGuidePage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const historyDropdownRef = useRef<HTMLDivElement>(null)
 
-    // Load history on mount
+    // Load history from API
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadStudyGuides = async () => {
+            setIsLoadingHistory(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    // Sort by date, most recent first
-                    const sorted = parsed.sort((a: StudyGuideHistory, b: StudyGuideHistory) => 
-                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                    )
-                    setHistory(sorted)
+                const response = await apiClient.getStudyGuides()
+                if (response.success && response.data) {
+                    const guides: StudyGuideHistory[] = response.data.map((guide: any) => ({
+                        id: guide.id,
+                        content: guide.content,
+                        subject: guide.subject || "",
+                        studyGuide: guide.studyGuide,
+                        createdAt: guide.createdAt,
+                    }))
+                    setHistory(guides.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+                } else {
+                    console.error("Failed to load study guides:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load study guide history:", err)
+                console.error("Error loading study guides:", err)
+            } finally {
+                setIsLoadingHistory(false)
             }
         }
+        loadStudyGuides()
     }, [])
 
     // Close dropdown when clicking outside
@@ -233,18 +240,18 @@ export default function StudyGuidePage() {
                 const guideText = response.data.studyGuide
                 setStudyGuide(guideText)
 
-                // Save to history
-                const historyItem: StudyGuideHistory = {
-                    id: Date.now().toString(),
-                    content: content.trim(),
-                    subject: subject.trim(),
-                    studyGuide: guideText,
-                    createdAt: new Date().toISOString(),
+                // Refresh history from API
+                const historyResponse = await apiClient.getStudyGuides()
+                if (historyResponse.success && historyResponse.data) {
+                    const guides: StudyGuideHistory[] = historyResponse.data.map((guide: any) => ({
+                        id: guide.id,
+                        content: guide.content,
+                        subject: guide.subject || "",
+                        studyGuide: guide.studyGuide,
+                        createdAt: guide.createdAt,
+                    }))
+                    setHistory(guides.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
                 }
-
-                const updatedHistory = [historyItem, ...history].slice(0, 50) // Keep last 50 items
-                setHistory(updatedHistory)
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory))
             } else {
                 setError(response.error || "Failed to generate study guide")
             }
@@ -258,7 +265,7 @@ export default function StudyGuidePage() {
 
     const handleLoadHistory = (historyItem: StudyGuideHistory) => {
         setContent(historyItem.content)
-        setSubject(historyItem.subject)
+        setSubject(historyItem.subject || "")
         setStudyGuide(historyItem.studyGuide)
         setUploadedFileName(null) // Clear file name when loading from history
         setIsHistoryOpen(false)

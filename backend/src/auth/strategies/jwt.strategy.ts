@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { safeLog } from '../../common/utils/logger.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface JwtPayload {
@@ -14,25 +15,25 @@ export interface JwtPayload {
 const cookieExtractor = (req: Request): string | null => {
   // Debug logging for cookie issues
   if (req && req.cookies) {
-    console.log('[JWT Strategy] Cookies received:', Object.keys(req.cookies));
-    console.log('[JWT Strategy] accessToken cookie exists:', !!req.cookies['accessToken']);
+    safeLog.log('[JWT Strategy] Cookies received:', Object.keys(req.cookies));
+    safeLog.log('[JWT Strategy] accessToken cookie exists:', !!req.cookies['accessToken']);
   } else {
-    console.log('[JWT Strategy] No cookies object in request');
+    safeLog.log('[JWT Strategy] No cookies object in request');
   }
   
   if (req && req.cookies && req.cookies['accessToken']) {
-    console.log('[JWT Strategy] Using accessToken from cookie');
+    safeLog.log('[JWT Strategy] Using accessToken from cookie');
     return req.cookies['accessToken'];
   }
   // Fallback to Authorization header if cookie not found
   if (req.headers.authorization) {
     const authHeader = req.headers.authorization;
     if (authHeader.startsWith('Bearer ')) {
-      console.log('[JWT Strategy] Using token from Authorization header');
+      safeLog.log('[JWT Strategy] Using token from Authorization header');
       return authHeader.substring(7);
     }
   }
-  console.log('[JWT Strategy] No token found in cookies or Authorization header');
+  safeLog.log('[JWT Strategy] No token found in cookies or Authorization header');
   return null;
 };
 
@@ -74,6 +75,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return user;
   }
 }
+
+
 
 
 

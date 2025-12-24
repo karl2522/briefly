@@ -12,6 +12,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import envConfig from './config/env.config';
 import { validate } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { StudyContentModule } from './study-content/study-content.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -38,6 +39,8 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     // AI module
     AiModule,
+    // Study content module
+    StudyContentModule,
   ],
   controllers: [AppController],
   providers: [

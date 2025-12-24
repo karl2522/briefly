@@ -6,9 +6,10 @@ import { useEffect, useMemo, useState } from "react"
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { apiClient } from "@/lib/api"
 import { getStudyStreak } from "@/lib/streak"
 import { cn } from "@/lib/utils"
-import { BookOpen, Brain, Clock, FileText, Target, TrendingUp } from "lucide-react"
+import { BookOpen, Brain, Clock, FileText, Loader2, Target, TrendingUp } from "lucide-react"
 import Link from "next/link"
 
 type Flashcard = { question: string; answer: string }
@@ -16,32 +17,45 @@ type FlashcardSet = { id: string; topic: string; flashcards: Flashcard[]; create
 type QuizQuestion = { question: string; options: string[]; correctAnswer: number }
 type QuizSet = { id: string; topic: string; quiz: QuizQuestion[]; numberOfQuestions: number; difficulty: string; createdAt: string }
 
-const FLASHCARD_KEY = "briefly_flashcard_sets"
-const QUIZ_KEY = "briefly_quiz_sets"
-
 export default function Dashboard() {
     const [flashcardSets, setFlashcardSets] = useState<FlashcardSet[]>([])
     const [quizSets, setQuizSets] = useState<QuizSet[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [streak, setStreak] = useState(0)
+    
     useEffect(() => {
-        const loadData = () => {
+        const loadData = async () => {
+            setIsLoading(true)
             try {
-                const fcRaw = localStorage.getItem(FLASHCARD_KEY)
-                if (fcRaw) {
-                    const parsed = JSON.parse(fcRaw)
-                    if (Array.isArray(parsed)) {
-                        setFlashcardSets(parsed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
-                    }
+                // Load flashcard sets from API
+                const flashcardResponse = await apiClient.getFlashcardSets()
+                if (flashcardResponse.success && flashcardResponse.data) {
+                    const sets: FlashcardSet[] = flashcardResponse.data.map((set: any) => ({
+                        id: set.id,
+                        topic: set.topic,
+                        flashcards: set.flashcards || [],
+                        createdAt: set.createdAt,
+                    }))
+                    setFlashcardSets(sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
                 }
-                const qRaw = localStorage.getItem(QUIZ_KEY)
-                if (qRaw) {
-                    const parsed = JSON.parse(qRaw)
-                    if (Array.isArray(parsed)) {
-                        setQuizSets(parsed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
-                    }
+
+                // Load quiz sets from API
+                const quizResponse = await apiClient.getQuizSets()
+                if (quizResponse.success && quizResponse.data) {
+                    const quizzes: QuizSet[] = quizResponse.data.map((set: any) => ({
+                        id: set.id,
+                        topic: set.topic,
+                        quiz: set.questions || [],
+                        numberOfQuestions: set.numberOfQuestions,
+                        difficulty: set.difficulty,
+                        createdAt: set.createdAt,
+                    }))
+                    setQuizSets(quizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
                 }
             } catch (err) {
                 console.error("Failed to load dashboard data:", err)
+            } finally {
+                setIsLoading(false)
             }
         }
         loadData()
@@ -169,7 +183,11 @@ export default function Dashboard() {
                         <CardDescription>Flashcard sets you've saved</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {studySets.length === 0 ? (
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="size-6 animate-spin text-primary" />
+                            </div>
+                        ) : studySets.length === 0 ? (
                             <div className="text-sm text-muted-foreground">No saved flashcard sets yet. Generate flashcards to see them here.</div>
                         ) : (
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -330,6 +348,8 @@ function StudySetCard({
         </Card>
     )
 }
+
+
 
 
 

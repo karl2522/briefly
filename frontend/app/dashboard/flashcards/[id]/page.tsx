@@ -3,6 +3,7 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { apiClient } from "@/lib/api"
 import {
     closestCenter,
     DndContext,
@@ -35,8 +36,6 @@ interface FlashcardSet {
     flashcards: Flashcard[]
     createdAt: string
 }
-
-const STORAGE_KEY = "briefly_flashcard_sets"
 
 interface SortableFlashcardProps {
     flashcard: Flashcard
@@ -178,41 +177,45 @@ export default function FlashcardSetPage() {
     )
 
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
+        const loadFlashcardSet = async () => {
+            setIsLoading(true)
             try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    const foundSet = parsed.find((s: FlashcardSet) => s.id === setId)
-                    if (foundSet) {
-                        setSet(foundSet)
+                const response = await apiClient.getFlashcardSet(setId)
+                if (response.success && response.data) {
+                    const flashcardSet: FlashcardSet = {
+                        id: response.data.id,
+                        topic: response.data.topic,
+                        flashcards: response.data.flashcards || [],
+                        createdAt: response.data.createdAt,
                     }
+                    setSet(flashcardSet)
+                } else {
+                    console.error("Failed to load flashcard set:", response.error)
                 }
             } catch (err) {
-                console.error("Failed to load flashcard set:", err)
+                console.error("Error loading flashcard set:", err)
+            } finally {
+                setIsLoading(false)
             }
         }
-        setIsLoading(false)
+        loadFlashcardSet()
     }, [setId])
 
-    const saveSetToStorage = (updatedSet: FlashcardSet) => {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    const updated = parsed.map((s: FlashcardSet) =>
-                        s.id === setId ? updatedSet : s
-                    )
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-                }
-            } catch (err) {
-                console.error("Failed to save flashcard set:", err)
+    const saveSetToAPI = async (updatedSet: FlashcardSet) => {
+        try {
+            const response = await apiClient.updateFlashcardSet(setId, {
+                topic: updatedSet.topic,
+                flashcards: updatedSet.flashcards,
+            })
+            if (!response.success) {
+                console.error("Failed to save flashcard set:", response.error)
             }
+        } catch (err) {
+            console.error("Error saving flashcard set:", err)
         }
     }
 
-    const handleDragEnd = (event: DragEndEvent) => {
+    const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event
 
         if (over && active.id !== over.id && set) {
@@ -222,7 +225,7 @@ export default function FlashcardSetPage() {
             const newFlashcards = arrayMove(set.flashcards, oldIndex, newIndex)
             const updatedSet = { ...set, flashcards: newFlashcards }
             setSet(updatedSet)
-            saveSetToStorage(updatedSet)
+            await saveSetToAPI(updatedSet)
         }
     }
 
@@ -234,13 +237,13 @@ export default function FlashcardSetPage() {
         }
     }
 
-    const handleSave = (index: number, question: string, answer: string) => {
+    const handleSave = async (index: number, question: string, answer: string) => {
         if (set && question.trim() && answer.trim()) {
             const newFlashcards = [...set.flashcards]
             newFlashcards[index] = { question: question.trim(), answer: answer.trim() }
             const updatedSet = { ...set, flashcards: newFlashcards }
             setSet(updatedSet)
-            saveSetToStorage(updatedSet)
+            await saveSetToAPI(updatedSet)
             setEditingIndex(null)
             setEditedQuestion("")
             setEditedAnswer("")
@@ -412,6 +415,8 @@ export default function FlashcardSetPage() {
         </DashboardLayout>
     )
 }
+
+
 
 
 
