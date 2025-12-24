@@ -158,32 +158,113 @@ Return only valid JSON array, no markdown formatting or additional text.`;
       const textResponse = await this.executeWithFallback(async () => {
         const result = await this.model.generateContent(prompt);
         const response = await result.response;
-        return response.text();
+        const text = response.text();
+        
+        // Log response length for debugging
+        this.logger.log(`[generateFlashcards] Raw response length: ${text?.length || 0} characters`);
+        
+        if (!text || text.trim().length === 0) {
+          throw new Error('Empty response from Gemini API');
+        }
+        
+        return text;
       });
 
-      // Sanitize AI response before parsing
-      const sanitizedResponse = sanitizeAiContent(textResponse);
+      // Log raw response (truncated for security)
+      this.logger.log(`[generateFlashcards] Raw response preview: ${textResponse?.substring(0, 200) || 'empty'}...`);
 
-      // Try to extract JSON from the response
-      const jsonMatch = sanitizedResponse.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        // Validate that parsed data is an array
-        if (Array.isArray(parsed)) {
-          return parsed;
+      // Extract JSON BEFORE sanitization (sanitization might remove code blocks containing JSON)
+      // Try to find JSON array in markdown code blocks first
+      let jsonToParse = textResponse;
+      
+      // Check for JSON in markdown code blocks (```json ... ```)
+      const codeBlockMatch = textResponse.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        jsonToParse = codeBlockMatch[1];
+        this.logger.log('[generateFlashcards] Found JSON in markdown code block');
+      } else {
+        // Try to extract JSON array directly
+        const jsonArrayMatch = textResponse.match(/\[[\s\S]*\]/);
+        if (jsonArrayMatch && jsonArrayMatch[0]) {
+          jsonToParse = jsonArrayMatch[0];
+          this.logger.log('[generateFlashcards] Found JSON array in response');
         }
+      }
+      
+      // Sanitize only if we didn't extract JSON from code block
+      // But be careful - don't sanitize the JSON itself, just the surrounding text
+      const sanitizedResponse = codeBlockMatch ? jsonToParse : sanitizeAiContent(textResponse);
+      
+      // Log sanitized response length
+      this.logger.log(`[generateFlashcards] Response to parse length: ${sanitizedResponse?.length || 0} characters`);
+      
+      if (!sanitizedResponse || sanitizedResponse.trim().length === 0) {
+        this.logger.error('[generateFlashcards] Response is empty');
+        throw new Error('AI response was empty');
+      }
+
+      // Try to extract JSON from the response (if not already extracted)
+      const jsonMatch = sanitizedResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch && jsonMatch[0] && jsonMatch[0].trim().length > 0) {
+        try {
+          const jsonString = jsonMatch[0].trim();
+          // Validate JSON string is not empty
+          if (jsonString.length < 2) { // Minimum is "[]"
+            throw new Error('JSON string too short');
+          }
+          
+          const parsed = JSON.parse(jsonString);
+          // Validate that parsed data is an array
+          if (Array.isArray(parsed)) {
+            this.logger.log(`[generateFlashcards] Successfully parsed ${parsed.length} flashcards`);
+            return parsed;
+          } else {
+            this.logger.warn('[generateFlashcards] Parsed JSON is not an array');
+          }
+        } catch (parseError) {
+          this.logger.warn(`[generateFlashcards] Failed to parse JSON match: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          this.logger.warn(`[generateFlashcards] JSON match preview: ${jsonMatch[0].substring(0, 500)}...`);
+          this.logger.warn(`[generateFlashcards] JSON match length: ${jsonMatch[0].length}`);
+        }
+      } else {
+        this.logger.warn('[generateFlashcards] No JSON array pattern found in response');
+        this.logger.warn(`[generateFlashcards] Response preview: ${sanitizedResponse.substring(0, 500)}...`);
       }
 
       // Fallback: try to parse the entire response
-      const parsed = JSON.parse(sanitizedResponse);
-      if (Array.isArray(parsed)) {
-        return parsed;
+      if (sanitizedResponse.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(sanitizedResponse.trim());
+          if (Array.isArray(parsed)) {
+            this.logger.log(`[generateFlashcards] Successfully parsed entire response as array: ${parsed.length} flashcards`);
+            return parsed;
+          } else {
+            this.logger.warn('[generateFlashcards] Parsed response is not an array');
+          }
+        } catch (parseError) {
+          this.logger.error(`[generateFlashcards] Failed to parse entire response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          this.logger.error(`[generateFlashcards] Response preview: ${sanitizedResponse.substring(0, 500)}...`);
+          this.logger.error(`[generateFlashcards] Response length: ${sanitizedResponse.length}`);
+        }
+      } else {
+        this.logger.error('[generateFlashcards] Response is empty, cannot parse');
       }
 
-      throw new Error('Invalid response format from AI');
+      throw new Error('Invalid response format from AI - response does not contain valid JSON array');
     } catch (error) {
       this.logger.error('Error generating flashcards', error);
-      throw new Error('Failed to generate flashcards');
+      
+      // Provide more specific error messages
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        this.logger.error('JSON parsing error - AI response may be incomplete or malformed');
+        throw new Error('AI response was incomplete or invalid. Please try again with shorter content.');
+      }
+      
+      if (error instanceof Error && error.message.includes('Empty')) {
+        throw new Error('AI service returned empty response. Please check your API key and try again.');
+      }
+      
+      throw new Error(`Failed to generate flashcards: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -277,33 +358,116 @@ Return only valid JSON array, no markdown formatting or additional text.`;
       const textResponse = await this.executeWithFallback(async () => {
         const result = await this.model.generateContent(prompt);
         const response = await result.response;
-        return response.text();
+        const text = response.text();
+        
+        // Log response length for debugging
+        this.logger.log(`[generateQuiz] Raw response length: ${text?.length || 0} characters`);
+        
+        if (!text || text.trim().length === 0) {
+          throw new Error('Empty response from Gemini API');
+        }
+        
+        return text;
       });
 
-      // Sanitize AI response before parsing
-      const sanitizedResponse = sanitizeAiContent(textResponse);
+      // Log raw response (truncated for security)
+      this.logger.log(`[generateQuiz] Raw response preview: ${textResponse?.substring(0, 200) || 'empty'}...`);
 
-      // Try to extract JSON from the response
-      const jsonMatch = sanitizedResponse.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        // Validate that parsed data is an array
-        if (Array.isArray(parsed)) {
-          return parsed;
+      // Extract JSON BEFORE sanitization (sanitization might remove code blocks containing JSON)
+      // Try to find JSON array in markdown code blocks first
+      let jsonToParse = textResponse;
+      
+      // Check for JSON in markdown code blocks (```json ... ```)
+      const codeBlockMatch = textResponse.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        jsonToParse = codeBlockMatch[1];
+        this.logger.log('[generateQuiz] Found JSON in markdown code block');
+      } else {
+        // Try to extract JSON array directly
+        const jsonArrayMatch = textResponse.match(/\[[\s\S]*\]/);
+        if (jsonArrayMatch && jsonArrayMatch[0]) {
+          jsonToParse = jsonArrayMatch[0];
+          this.logger.log('[generateQuiz] Found JSON array in response');
         }
+      }
+      
+      // Sanitize only if we didn't extract JSON from code block
+      // But be careful - don't sanitize the JSON itself, just the surrounding text
+      const sanitizedResponse = codeBlockMatch ? jsonToParse : sanitizeAiContent(textResponse);
+      
+      // Log sanitized response length
+      this.logger.log(`[generateQuiz] Response to parse length: ${sanitizedResponse?.length || 0} characters`);
+      
+      if (!sanitizedResponse || sanitizedResponse.trim().length === 0) {
+        this.logger.error('[generateQuiz] Response is empty');
+        throw new Error('AI response was empty');
+      }
+
+      // Try to extract JSON from the response (if not already extracted)
+      const jsonMatch = sanitizedResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch && jsonMatch[0] && jsonMatch[0].trim().length > 0) {
+        try {
+          const jsonString = jsonMatch[0].trim();
+          // Validate JSON string is not empty
+          if (jsonString.length < 2) { // Minimum is "[]"
+            throw new Error('JSON string too short');
+          }
+          
+          const parsed = JSON.parse(jsonString);
+          // Validate that parsed data is an array
+          if (Array.isArray(parsed)) {
+            this.logger.log(`[generateQuiz] Successfully parsed ${parsed.length} quiz questions`);
+            return parsed;
+          } else {
+            this.logger.warn('[generateQuiz] Parsed JSON is not an array');
+          }
+        } catch (parseError) {
+          this.logger.warn(`[generateQuiz] Failed to parse JSON match: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          this.logger.warn(`[generateQuiz] JSON match preview: ${jsonMatch[0].substring(0, 500)}...`);
+          this.logger.warn(`[generateQuiz] JSON match length: ${jsonMatch[0].length}`);
+        }
+      } else {
+        this.logger.warn('[generateQuiz] No JSON array pattern found in response');
+        this.logger.warn(`[generateQuiz] Response preview: ${sanitizedResponse.substring(0, 500)}...`);
       }
 
       // Fallback: try to parse the entire response
-      const parsed = JSON.parse(sanitizedResponse);
-      if (Array.isArray(parsed)) {
-        return parsed;
+      if (sanitizedResponse.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(sanitizedResponse.trim());
+          if (Array.isArray(parsed)) {
+            this.logger.log(`[generateQuiz] Successfully parsed entire response as array: ${parsed.length} questions`);
+            return parsed;
+          } else {
+            this.logger.warn('[generateQuiz] Parsed response is not an array');
+          }
+        } catch (parseError) {
+          this.logger.error(`[generateQuiz] Failed to parse entire response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          this.logger.error(`[generateQuiz] Response preview: ${sanitizedResponse.substring(0, 500)}...`);
+          this.logger.error(`[generateQuiz] Response length: ${sanitizedResponse.length}`);
+        }
+      } else {
+        this.logger.error('[generateQuiz] Response is empty, cannot parse');
       }
 
-      throw new Error('Invalid response format from AI');
+      throw new Error('Invalid response format from AI - response does not contain valid JSON array');
     } catch (error) {
       this.logger.error('Error generating quiz', error);
-      throw new Error('Failed to generate quiz');
+      
+      // Provide more specific error messages
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        this.logger.error('JSON parsing error - AI response may be incomplete or malformed');
+        throw new Error('AI response was incomplete or invalid. Please try again with shorter content.');
+      }
+      
+      if (error instanceof Error && error.message.includes('Empty')) {
+        throw new Error('AI service returned empty response. Please check your API key and try again.');
+      }
+      
+      throw new Error(`Failed to generate quiz: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }
+
+
 

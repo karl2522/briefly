@@ -21,3 +21,5 @@ export class UpdateUserDto {
   @MaxLength(500, { message: 'Avatar URL cannot exceed 500 characters.' })
   avatar?: string;
 }
+
+

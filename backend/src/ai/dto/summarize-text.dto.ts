@@ -12,3 +12,5 @@ export class SummarizeTextDto {
   length?: 'short' | 'medium' | 'long' = 'medium';
 }
 
+
+
