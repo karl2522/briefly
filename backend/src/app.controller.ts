@@ -32,12 +32,23 @@ export class AppController {
     const csrfToken = crypto.randomBytes(32).toString('hex');
     
     // Set CSRF token in httpOnly cookie
+    // For cross-domain requests (frontend on Vercel, backend on Railway):
+    // Use sameSite: 'none' with secure: true
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('csrf-token', csrfToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax', // Use 'lax' for cross-domain support (still secure)
+      secure: isProduction, // HTTPS only in production (required for sameSite: 'none')
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax', // 'none' for cross-domain, 'lax' for same-domain
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/',
+      // NO domain attribute - cookies will be scoped to backend domain
+    });
+    
+    console.log('[CSRF Token] Setting cookie with options:', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
       path: '/',
     });
     

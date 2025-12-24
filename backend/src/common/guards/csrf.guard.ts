@@ -36,10 +36,29 @@ export class CsrfGuard implements CanActivate {
     // Get CSRF token from cookie
     const csrfCookie = request.cookies?.['csrf-token'];
     
+    // Debug logging for CSRF token issues
+    console.log('[CSRF Guard] Checking CSRF token:', {
+      method: request.method,
+      url: request.url,
+      hasHeaderToken: !!csrfToken,
+      hasCookieToken: !!csrfCookie,
+      headerTokenLength: csrfToken?.length || 0,
+      cookieTokenLength: csrfCookie?.length || 0,
+      tokensMatch: csrfToken === csrfCookie,
+      cookiesReceived: request.cookies ? Object.keys(request.cookies) : 'no cookies',
+    });
+    
     // Validate CSRF token
     if (!csrfToken || !csrfCookie || csrfToken !== csrfCookie) {
+      console.error('[CSRF Guard] CSRF token validation failed:', {
+        hasHeaderToken: !!csrfToken,
+        hasCookieToken: !!csrfCookie,
+        tokensMatch: csrfToken === csrfCookie,
+      });
       throw new ForbiddenException('Invalid CSRF token');
     }
+    
+    console.log('[CSRF Guard] CSRF token validated successfully');
 
     return true;
   }
