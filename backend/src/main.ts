@@ -126,6 +126,10 @@ export async function createNestApp(): Promise<INestApplication> {
       // Log rejected origins for debugging
       console.error(`[CORS] Rejected origin: ${origin}`);
       console.error(`[CORS] Allowed origins were: ${JSON.stringify(allowedOrigins.map(o => o instanceof RegExp ? o.toString() : o))}`);
+      console.error(`[CORS] Frontend URL from config: ${normalizedFrontendUrl || 'not set'}`);
+      // For debugging: test regex manually
+      const vercelRegex = /^https:\/\/.*\.vercel\.app$/;
+      console.error(`[CORS] Regex test result: ${vercelRegex.test(origin)}`);
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
