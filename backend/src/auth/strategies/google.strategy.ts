@@ -70,27 +70,72 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       const mode = req.cookies?.oauth_mode as string;
       const isSignup = mode === 'signup';
       
-      // Find user by email or googleId
-      let user = await this.prisma.user.findFirst({
-        where: {
-          OR: [
-            { email },
-            { googleId: id },
-          ],
-        },
-      });
+      // Ensure Prisma connection is active (reconnect if needed)
+      try {
+        await this.prisma.$connect();
+      } catch (connectError) {
+        console.warn('[GoogleStrategy] Connection check failed, continuing anyway:', connectError);
+      }
+      
+      // Find user by email or googleId (with retry on connection error)
+      let user;
+      try {
+        user = await this.prisma.user.findFirst({
+          where: {
+            OR: [
+              { email },
+              { googleId: id },
+            ],
+          },
+        });
+      } catch (findError: any) {
+        // If connection error, reconnect and retry once
+        if (findError?.code === 'P1001' || findError?.message?.includes('Closed')) {
+          console.warn('[GoogleStrategy] Connection closed during findFirst, reconnecting...');
+          await this.prisma.$connect();
+          user = await this.prisma.user.findFirst({
+            where: {
+              OR: [
+                { email },
+                { googleId: id },
+              ],
+            },
+          });
+        } else {
+          throw findError;
+        }
+      }
 
       if (!user) {
         if (isSignup) {
           // SIGN-UP: User doesn't exist - create new user with OAuth
-          user = await this.prisma.user.create({
-            data: {
-              email,
-              name: displayName,
-              avatar: photo,
-              googleId: id,
-            },
-          });
+          // Retry on connection error
+          try {
+            user = await this.prisma.user.create({
+              data: {
+                email,
+                name: displayName,
+                avatar: photo,
+                googleId: id,
+              },
+            });
+          } catch (createError: any) {
+            // If connection error, reconnect and retry once
+            if (createError?.code === 'P1001' || createError?.message?.includes('Closed')) {
+              console.warn('[GoogleStrategy] Connection closed during user creation, reconnecting...');
+              await this.prisma.$connect();
+              user = await this.prisma.user.create({
+                data: {
+                  email,
+                  name: displayName,
+                  avatar: photo,
+                  googleId: id,
+                },
+              });
+            } else {
+              throw createError;
+            }
+          }
         } else {
           // SIGN-IN: User doesn't exist - they must sign up first
           return done(
@@ -119,10 +164,25 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         // User has googleId - allow sign-in
         // Update avatar if needed
         if (photo && !user.avatar) {
-          user = await this.prisma.user.update({
-            where: { id: user.id },
-            data: { avatar: photo },
-          });
+          try {
+            user = await this.prisma.user.update({
+              where: { id: user.id },
+              data: { avatar: photo },
+            });
+          } catch (updateError: any) {
+            // If connection error, reconnect and retry once
+            if (updateError?.code === 'P1001' || updateError?.message?.includes('Closed')) {
+              console.warn('[GoogleStrategy] Connection closed during avatar update, reconnecting...');
+              await this.prisma.$connect();
+              user = await this.prisma.user.update({
+                where: { id: user.id },
+                data: { avatar: photo },
+              });
+            } else {
+              // Log but don't fail - avatar update is optional
+              console.warn('[GoogleStrategy] Failed to update avatar:', updateError);
+            }
+          }
         }
       }
 
