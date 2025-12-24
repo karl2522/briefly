@@ -53,13 +53,14 @@ export class AiController {
   @Post('summarize')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async summarizeText(@Body() dto: SummarizeTextDto, @CurrentUser() user: any) {
-    const summary = await this.geminiService.summarizeText(dto.text, dto.length);
+    const length = dto.length || 'medium'; // Default to 'medium' if not provided
+    const summary = await this.geminiService.summarizeText(dto.text, length);
     
     // Auto-save to database
     const savedSummary = await this.summariesService.create(user.id, {
       text: dto.text,
       summary,
-      length: dto.length,
+      length,
       originalLength: dto.text.length,
       summaryLength: summary.length,
     });
@@ -135,6 +136,7 @@ export class AiController {
     };
   }
 }
+
 
 
 

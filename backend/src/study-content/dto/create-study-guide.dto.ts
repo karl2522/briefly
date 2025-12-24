@@ -17,3 +17,4 @@ export class CreateStudyGuideDto {
   studyGuide: string; // Generated content
 }
 
+
