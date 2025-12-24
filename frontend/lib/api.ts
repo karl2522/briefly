@@ -295,8 +295,8 @@ class ApiClient {
   }
 
   // AI endpoints
-  async generateFlashcards(text: string, topic?: string): Promise<ApiResponse<{ flashcards: any[]; count: number }>> {
-    return this.request<{ flashcards: any[]; count: number }>('/ai/flashcards', {
+  async generateFlashcards(text: string, topic?: string): Promise<ApiResponse<{ flashcards: any[]; count: number; flashcardSetId?: string }>> {
+    return this.request<{ flashcards: any[]; count: number; flashcardSetId?: string }>('/ai/flashcards', {
       method: 'POST',
       body: JSON.stringify({ text, topic }),
     });
@@ -457,6 +457,7 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
 
 
 
