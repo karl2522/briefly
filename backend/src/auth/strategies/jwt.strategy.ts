@@ -12,16 +12,27 @@ export interface JwtPayload {
 
 // Custom extractor to get JWT from cookie or Authorization header (for backward compatibility)
 const cookieExtractor = (req: Request): string | null => {
+  // Debug logging for cookie issues
+  if (req && req.cookies) {
+    console.log('[JWT Strategy] Cookies received:', Object.keys(req.cookies));
+    console.log('[JWT Strategy] accessToken cookie exists:', !!req.cookies['accessToken']);
+  } else {
+    console.log('[JWT Strategy] No cookies object in request');
+  }
+  
   if (req && req.cookies && req.cookies['accessToken']) {
+    console.log('[JWT Strategy] Using accessToken from cookie');
     return req.cookies['accessToken'];
   }
   // Fallback to Authorization header if cookie not found
   if (req.headers.authorization) {
     const authHeader = req.headers.authorization;
     if (authHeader.startsWith('Bearer ')) {
+      console.log('[JWT Strategy] Using token from Authorization header');
       return authHeader.substring(7);
     }
   }
+  console.log('[JWT Strategy] No token found in cookies or Authorization header');
   return null;
 };
 

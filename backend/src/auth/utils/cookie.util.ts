@@ -18,46 +18,41 @@ export function setAuthCookies(
   const accessTokenMaxAge = parseExpirationToMs(jwtExpiresIn);
   const refreshTokenMaxAge = parseExpirationToMs(refreshExpiresIn);
 
-  // Extract domain from frontend URL for cookie domain setting
-  const frontendUrl = configService.get<string>('app.frontendUrl') || '';
-  let cookieDomain: string | undefined;
-  
-  if (isProduction && frontendUrl) {
-    try {
-      const url = new URL(frontendUrl);
-      // Set domain for production (e.g., '.yourdomain.com' for subdomain support)
-      // Only set if it's a proper domain (not localhost or IP)
-      if (url.hostname && !url.hostname.includes('localhost') && !url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-        // Extract root domain (e.g., 'yourdomain.com' from 'app.yourdomain.com')
-        const parts = url.hostname.split('.');
-        if (parts.length >= 2) {
-          cookieDomain = `.${parts.slice(-2).join('.')}`;
-        }
-      }
-    } catch (e) {
-      // Invalid URL, skip domain setting
-    }
-  }
+  // For cross-domain cookies (frontend on Vercel, backend on Railway):
+  // DO NOT set domain attribute - let browser use default (backend domain)
+  // Cookies will be sent automatically with credentials: 'include' from frontend
+  // Setting domain would restrict cookies to that domain, breaking cross-domain auth
 
   // Set access token cookie (short-lived)
-  res.cookie('accessToken', accessToken, {
+  // For cross-domain cookies (frontend on Vercel, backend on Railway):
+  // Use sameSite: 'none' with secure: true for cross-domain requests
+  // Use sameSite: 'lax' for same-domain or OAuth redirects
+  const cookieOptions = {
     httpOnly: true,
-    secure: isProduction, // HTTPS only in production
-    sameSite: isProduction ? 'lax' : 'lax', // Use 'lax' for cross-domain support (still secure)
+    secure: isProduction, // HTTPS only in production (required for sameSite: 'none')
+    sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax', // 'none' for cross-domain, 'lax' for same-domain
     maxAge: accessTokenMaxAge,
     path: '/',
-    ...(cookieDomain && { domain: cookieDomain }), // Set domain only in production with valid domain
+    // NO domain attribute - cookies will be scoped to backend domain
+    // Browser will send them automatically with credentials: 'include'
+  };
+  
+  console.log('[setAuthCookies] Setting cookies with options:', {
+    httpOnly: cookieOptions.httpOnly,
+    secure: cookieOptions.secure,
+    sameSite: cookieOptions.sameSite,
+    maxAge: cookieOptions.maxAge,
+    path: cookieOptions.path,
+    domain: 'NOT SET (scoped to backend domain)',
+    isProduction,
   });
+  
+  res.cookie('accessToken', accessToken, cookieOptions);
 
   // Set refresh token cookie (long-lived)
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'lax' : 'lax', // Use 'lax' for cross-domain support (still secure)
-    maxAge: refreshTokenMaxAge,
-    path: '/',
-    ...(cookieDomain && { domain: cookieDomain }), // Set domain only in production with valid domain
-  });
+  res.cookie('refreshToken', refreshToken, cookieOptions);
+  
+  console.log('[setAuthCookies] Cookies set successfully');
 }
 
 /**
@@ -65,37 +60,18 @@ export function setAuthCookies(
  */
 export function clearAuthCookies(res: Response): void {
   const isProduction = process.env.NODE_ENV === 'production';
-  const frontendUrl = process.env.FRONTEND_URL || '';
-  let cookieDomain: string | undefined;
-  
-  if (isProduction && frontendUrl) {
-    try {
-      const url = new URL(frontendUrl);
-      if (url.hostname && !url.hostname.includes('localhost') && !url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-        const parts = url.hostname.split('.');
-        if (parts.length >= 2) {
-          cookieDomain = `.${parts.slice(-2).join('.')}`;
-        }
-      }
-    } catch (e) {
-      // Invalid URL, skip domain setting
-    }
-  }
 
-  res.clearCookie('accessToken', {
+  // Clear cookies without domain attribute (matches how they were set)
+  const clearOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax', // Use 'lax' for cross-domain support
+    sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
-    ...(cookieDomain && { domain: cookieDomain }),
-  });
-  res.clearCookie('refreshToken', {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'lax', // Use 'lax' for cross-domain support
-    path: '/',
-    ...(cookieDomain && { domain: cookieDomain }),
-  });
+    // NO domain attribute - matches how cookie was set
+  };
+  
+  res.clearCookie('accessToken', clearOptions);
+  res.clearCookie('refreshToken', clearOptions);
 }
 
 /**
