@@ -362,36 +362,6 @@ npx prisma generate
 npx prisma studio
 ```
 
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
-
-### Development Guidelines
-
-- Follow TypeScript best practices
-- Write meaningful commit messages
-- Add tests for new features
-- Update documentation as needed
-- Ensure code passes linting
-
-### Code Quality
-
-- **Linting**: ESLint configuration
-- **Testing**: Jest for unit and integration tests
-- **Type Safety**: Full TypeScript coverage
-- **Code Style**: Prettier formatting
-
----
-
 ## 🙏 Acknowledgments
 
 - **Developed by**: Jared Omen
