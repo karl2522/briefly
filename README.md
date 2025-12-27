@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Briefly Logo](frontend/public/briefly-logo.png)
+<img src="frontend/public/briefly-logo.png" alt="Briefly Logo" width="60" height="60">
 
 **Transform how you learn with AI-powered study tools built for students**
 
