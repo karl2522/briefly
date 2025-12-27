@@ -362,50 +362,6 @@ npx prisma generate
 npx prisma studio
 ```
 
----
-
-## 🚀 Deployment
-
-### Production Environment Variables
-
-Create `.env` files in both backend and frontend directories:
-
-#### Backend `.env`
-```env
-NODE_ENV=production
-PORT=3001
-FRONTEND_URL=https://yourdomain.com
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-JWT_SECRET=your_jwt_secret
-JWT_REFRESH_SECRET=your_refresh_secret
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
-GEMINI_API_KEY=your_gemini_api_key
-```
-
-#### Frontend `.env.local`
-```env
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-```
-
-### Recommended Deployment
-
-#### Option 1: Railway (Backend) + Vercel (Frontend)
-1. **Backend**: Connect to Railway and deploy
-2. **Frontend**: Connect to Vercel and deploy
-3. **Database**: Use Railway's PostgreSQL or external provider
-
-#### Option 2: Docker Deployment
-```bash
-# Build Docker images
-docker build -t briefly-backend ./backend
-docker build -t briefly-frontend ./frontend
-
-# Run containers
-docker-compose up -d
-```
 
 ---
 
