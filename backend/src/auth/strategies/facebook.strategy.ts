@@ -27,6 +27,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       scope: ['email'],
       profileFields: ['emails', 'name', 'picture.type(large)'],
       passReqToCallback: true, // Enable access to request in validate
+      state: true, // Enable state parameter to pass mode (signup/signin)
     });
   }
 
@@ -69,17 +70,18 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
     }
 
     try {
-      // Get mode from cookie (set before OAuth redirect)
-      const mode = req.cookies?.oauth_mode as string;
+      // Get mode from query parameter (passed via OAuth state)
+      // This works on iOS Safari, unlike cookies which get blocked
+      const mode = req.query?.mode as string;
       const isSignup = mode === 'signup';
-      
+
       // Ensure Prisma connection is active (reconnect if needed)
       try {
         await this.prisma.$connect();
       } catch (connectError) {
         safeLog.warn('[FacebookStrategy] Connection check failed, continuing anyway:', connectError);
       }
-      
+
       // Find user by email or facebookId (with retry on connection error)
       let user;
       try {

@@ -26,6 +26,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       callbackURL: callbackURL,
       scope: ['email', 'profile'],
       passReqToCallback: true, // Enable access to request in validate
+      state: true, // Enable state parameter to pass mode (signup/signin)
     });
   }
 
@@ -67,17 +68,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
 
     try {
-      // Get mode from cookie (set before OAuth redirect)
-      const mode = req.cookies?.oauth_mode as string;
+      // Get mode from query parameter (passed via OAuth state)
+      // This works on iOS Safari, unlike cookies which get blocked
+      const mode = req.query?.mode as string;
       const isSignup = mode === 'signup';
-      
       // Ensure Prisma connection is active (reconnect if needed)
       try {
         await this.prisma.$connect();
       } catch (connectError) {
         safeLog.warn('[GoogleStrategy] Connection check failed, continuing anyway:', connectError);
       }
-      
+
       // Find user by email or googleId (with retry on connection error)
       let user;
       try {

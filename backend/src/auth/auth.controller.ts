@@ -103,11 +103,13 @@ export class AuthController {
     // Set new tokens in httpOnly cookies
     setAuthCookies(res, authResponse.accessToken, authResponse.refreshToken, this.configService);
 
-    // Return user data only (tokens are in cookies)
+    // Return user data AND tokens (for Hybrid Storage on iOS)
     return res.json({
       success: true,
       data: {
         user: authResponse.user,
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
       },
     });
   }
@@ -131,21 +133,8 @@ export class AuthController {
   @UseGuards(ThrottlerGuard, AuthGuard('google'))
   @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async googleAuth(@Req() req: Request, @Res() res: Response) {
-    // Get mode from query parameter
-    const mode = (req.query?.mode as string) || 'signin';
-    if (mode !== 'signup' && mode !== 'signin') {
-      // Invalid mode, default to signin
-      return;
-    }
-
-    // Store mode in a cookie that will be available in the callback
-    res.cookie('oauth_mode', mode, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Use 'lax' for cross-domain OAuth flows (frontend on Vercel, backend on Railway)
-      maxAge: 5 * 60 * 1000, // 5 minutes
-    });
-
+    // Mode is passed via OAuth state parameter (not cookies, which iOS Safari blocks)
+    // The AuthGuard will handle the redirect to Google
     // Guard redirects to Google (this will happen automatically)
   }
 
@@ -157,12 +146,10 @@ export class AuthController {
   async googleCallback(@Req() req: Request, @Res() res: Response) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const user = req.user as any;
-    // Get mode from cookie (set before OAuth redirect)
-    const mode = req.cookies?.oauth_mode as string;
+    // Get mode from query parameter (passed via OAuth state)
+    const mode = req.query?.mode as string;
     const isSignup = mode === 'signup';
 
-    // Clear the cookie after use
-    res.clearCookie('oauth_mode');
 
     if (!user || !user.id || !user.email) {
       const redirectPage = isSignup ? '/sign-up' : '/sign-in';
@@ -196,22 +183,8 @@ export class AuthController {
   @UseGuards(ThrottlerGuard, AuthGuard('facebook'))
   @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async facebookAuth(@Req() req: Request, @Res() res: Response) {
-    // Get mode from query parameter
-    const mode = (req.query?.mode as string) || 'signin';
-    if (mode !== 'signup' && mode !== 'signin') {
-      // Invalid mode, default to signin
-      return;
-    }
-
-    // Store mode in a cookie that will be available in the callback
-    res.cookie('oauth_mode', mode, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Use 'lax' for cross-domain OAuth flows (frontend on Vercel, backend on Railway)
-      maxAge: 5 * 60 * 1000, // 5 minutes
-    });
-
-    // Guard redirects to Facebook (this will happen automatically)
+    // Mode is passed via OAuth state parameter (not cookies, which iOS Safari blocks)
+    // The AuthGuard will handle the redirect to Facebook
   }
 
   @Public()
@@ -222,12 +195,9 @@ export class AuthController {
   async facebookCallback(@Req() req: Request, @Res() res: Response) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const user = req.user as any;
-    // Get mode from cookie (set before OAuth redirect)
-    const mode = req.cookies?.oauth_mode as string;
+    // Get mode from query parameter (passed via OAuth state)
+    const mode = req.query?.mode as string;
     const isSignup = mode === 'signup';
-
-    // Clear the cookie after use
-    res.clearCookie('oauth_mode');
 
     if (!user || !user.id || !user.email) {
       const redirectPage = isSignup ? '/sign-up' : '/sign-in';
@@ -299,11 +269,14 @@ export class AuthController {
     // Set tokens in httpOnly cookies (same-domain context, works on iOS)
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken, this.configService);
 
-    // Return success (tokens are in cookies)
+    // Return success with tokens (for Hybrid Storage on iOS)
+    // The frontend will save these to localStorage as a fallback if cookies fail
     return res.json({
       success: true,
       data: {
         user,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       },
     });
   }

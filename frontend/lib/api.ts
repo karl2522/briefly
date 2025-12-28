@@ -100,11 +100,18 @@ class ApiClient {
     const needsCsrf = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
     const csrfToken = needsCsrf ? await this.getCsrfToken() : null;
 
-    // Tokens are in httpOnly cookies, so browser sends them automatically
-    // No need to manually add Authorization header
+    // Hybrid Storage for iOS:
+    // Check if we have tokens in localStorage (fallback if cookies fail)
+    let accessToken = null;
+    if (typeof window !== 'undefined') {
+      accessToken = localStorage.getItem('accessToken');
+    }
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
+      // Add Authorization header if we have a token in localStorage
+      ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
       ...options.headers,
     };
 
@@ -114,7 +121,7 @@ class ApiClient {
       headers,
     };
 
-    console.log(`[API] ${method} ${url}`, { needsCsrf, hasCsrfToken: !!csrfToken });
+    console.log(`[API] ${method} ${url}`, { needsCsrf, hasCsrfToken: !!csrfToken, hasAuthHeader: !!accessToken });
 
     try {
       // Add timeout to prevent hanging
@@ -150,7 +157,7 @@ class ApiClient {
         if (response.status === 401 && retryCount === 0) {
           const refreshResponse = await this.refreshToken();
           if (refreshResponse.success) {
-            // Retry original request with new tokens (in cookies)
+            // Retry original request with new tokens (either in cookies or localStorage)
             return this.request<T>(endpoint, options, retryCount + 1);
           } else {
             // Refresh failed, clear any stale tokens and redirect to sign-in
@@ -182,7 +189,13 @@ class ApiClient {
       // Backend wraps successful responses in ApiResponse format via TransformInterceptor
       const responseData = data as ApiResponse<T>;
       if (responseData && typeof responseData === 'object' && 'success' in responseData) {
+        // Check if response contains tokens (Hybrid Storage) and save them
         if (responseData.success && responseData.data) {
+          const resData = responseData.data as any;
+          if (resData.accessToken && resData.refreshToken) {
+            this.setTokens(resData.accessToken, resData.refreshToken);
+          }
+
           return {
             success: true,
             data: responseData.data,
@@ -240,15 +253,39 @@ class ApiClient {
   }
 
   async refreshToken(): Promise<ApiResponse<AuthResponse>> {
-    // Refresh token is read from httpOnly cookie by backend
-    // No need to pass it in body
-    return this.request<AuthResponse>('/auth/refresh', {
+    // Hybrid Storage for iOS:
+    // If we have a refresh token in localStorage, send it in the body
+    let body = {};
+    if (typeof window !== 'undefined') {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        body = { refreshToken };
+      }
+    }
+
+    // Refresh token is read from httpOnly cookie by backend (primary)
+    // Or from body (fallback for iOS)
+    const response = await this.request<AuthResponse>('/auth/refresh', {
       method: 'POST',
       credentials: 'include', // Ensure cookies are sent
+      body: JSON.stringify(body),
     });
+
+    // If refresh successful and tokens returned, update localStorage
+    if (response.success && response.data) {
+      const data = response.data as any;
+      if (data.accessToken && data.refreshToken) {
+        this.setTokens(data.accessToken, data.refreshToken);
+      }
+    }
+
+    return response;
   }
 
   async logout(): Promise<ApiResponse<null>> {
+    // Clear local tokens first
+    this.clearTokens();
+
     return this.request<null>('/auth/logout', {
       method: 'POST',
     });
@@ -256,11 +293,22 @@ class ApiClient {
 
   async exchangeAuthCode(code: string): Promise<ApiResponse<AuthResponse>> {
     // Exchange OAuth authorization code for tokens
-    // Tokens will be set as httpOnly cookies by backend
-    return this.request<AuthResponse>('/auth/exchange-code', {
+    // Tokens will be set as httpOnly cookies by backend (primary)
+    // And returned in body (fallback for iOS)
+    const response = await this.request<AuthResponse>('/auth/exchange-code', {
       method: 'POST',
       body: JSON.stringify({ code }),
     });
+
+    // If exchange successful and tokens returned, update localStorage
+    if (response.success && response.data) {
+      const data = response.data as any;
+      if (data.accessToken && data.refreshToken) {
+        this.setTokens(data.accessToken, data.refreshToken);
+      }
+    }
+
+    return response;
   }
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
@@ -277,30 +325,44 @@ class ApiClient {
   }
 
   // Token management
-  // Tokens are now stored in httpOnly cookies by the backend
-  // These methods are kept for backward compatibility but are no longer used
+  // Tokens are primarily stored in httpOnly cookies
+  // But also in localStorage for iOS Hybrid Storage
   setTokens(accessToken: string, refreshToken: string) {
-    // Tokens are set in httpOnly cookies by backend
-    // No action needed - cookies are managed server-side
-    // This method is kept for backward compatibility
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        console.log('[API] Tokens saved to localStorage (Hybrid Storage)');
+      } catch (e) {
+        console.error('[API] Failed to save tokens to localStorage:', e);
+      }
+    }
   }
 
   getToken(): string | null {
-    // Tokens are in httpOnly cookies, cannot be read by JavaScript
-    // This method is kept for backward compatibility but returns null
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('accessToken');
+    }
     return null;
   }
 
   getRefreshToken(): string | null {
-    // Tokens are in httpOnly cookies, cannot be read by JavaScript
-    // This method is kept for backward compatibility but returns null
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('refreshToken');
+    }
     return null;
   }
 
   clearTokens() {
-    // Tokens are cleared by backend when logout is called
-    // This method is kept for backward compatibility
-    // Backend clears cookies on logout endpoint
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        console.log('[API] Tokens cleared from localStorage');
+      } catch (e) {
+        console.error('[API] Failed to clear tokens from localStorage:', e);
+      }
+    }
   }
 
   // AI endpoints
