@@ -12,6 +12,7 @@ import { CsrfGuard } from './common/guards/csrf.guard';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import envConfig from './config/env.config';
 import { validate } from './config/env.validation';
+import { FoldersModule } from './folders/folders.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { StudyContentModule } from './study-content/study-content.module';
 import { UsersModule } from './users/users.module';
@@ -75,6 +76,8 @@ import { UsersModule } from './users/users.module';
     AiModule,
     // Study content module
     StudyContentModule,
+    // Folders module
+    FoldersModule,
   ],
   controllers: [AppController],
   providers: [

@@ -12,7 +12,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api"
-import { AlertCircle, BookOpen, Brain, Calendar, Check, ChevronRight, FileText, Loader2, Sparkles, Trash2, Upload, X } from "lucide-react"
+import { AlertCircle, BookOpen, Brain, Calendar, Check, ChevronRight, FileText, Folder, FolderPlus, Loader2, Sparkles, Trash2, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
@@ -27,6 +27,15 @@ interface FlashcardSet {
     id: string
     topic: string
     flashcards: Flashcard[]
+    createdAt: string
+    folderId?: string | null
+}
+
+interface FolderType {
+    id: string
+    name: string
+    color: string | null
+    flashcardCount: number
     createdAt: string
 }
 
@@ -44,6 +53,15 @@ export default function FlashcardsPage() {
     const [setToDelete, setSetToDelete] = useState<string | null>(null)
     const [isDeleting, setIsDeleting] = useState(false)
     const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
+
+    // Folder state
+    const [folders, setFolders] = useState<FolderType[]>([])
+    const [isLoadingFolders, setIsLoadingFolders] = useState(true)
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+    const [newFolderName, setNewFolderName] = useState("")
+    const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
+    const [isDeletingFolder, setIsDeletingFolder] = useState(false)
 
     const showToast = (message: string, type: 'success' | 'error') => {
         setToast({ message, type })
@@ -75,6 +93,24 @@ export default function FlashcardsPage() {
             }
         }
         loadFlashcardSets()
+    }, [])
+
+    // Load folders
+    useEffect(() => {
+        const loadFolders = async () => {
+            setIsLoadingFolders(true)
+            try {
+                const response = await apiClient.getFolders()
+                if (response.success && response.data) {
+                    setFolders(response.data)
+                }
+            } catch (err) {
+                console.error("Error loading folders:", err)
+            } finally {
+                setIsLoadingFolders(false)
+            }
+        }
+        loadFolders()
     }, [])
 
 
@@ -305,11 +341,22 @@ export default function FlashcardsPage() {
     return (
         <DashboardLayout title="Flashcard Generator">
             <div className="mb-6">
-                <div className="mb-2 flex items-center gap-2">
-                    <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                        <Brain className="size-5" />
+                <div className="mb-2 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                            <Brain className="size-5" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-foreground sm:text-3xl">Flashcard Generator</h2>
                     </div>
-                    <h2 className="text-2xl font-bold text-foreground sm:text-3xl">Flashcard Generator</h2>
+                    <Button
+                        onClick={() => setIsCreatingFolder(true)}
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                    >
+                        <FolderPlus className="size-4" />
+                        Create Folder
+                    </Button>
                 </div>
                 <p className="text-muted-foreground">Transform any text into interactive flashcards for better memorization</p>
             </div>
@@ -493,6 +540,77 @@ export default function FlashcardsPage() {
                                 </div>
                             )}
                         </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Folders Section */}
+            <div className="mt-6">
+                <Card>
+                    <CardHeader>
+                        <div>
+                            <CardTitle>Folders</CardTitle>
+                            <CardDescription>Organize your flashcard sets</CardDescription>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingFolders ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="size-6 animate-spin text-primary" />
+                            </div>
+                        ) : folders.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10">
+                                    <Folder className="size-8 text-primary" />
+                                </div>
+                                <h3 className="mb-2 text-lg font-semibold text-foreground">No folders yet</h3>
+                                <p className="text-sm text-muted-foreground mb-4">Create folders to organize your flashcard sets</p>
+                                <Button
+                                    onClick={() => setIsCreatingFolder(true)}
+                                    size="sm"
+                                    className="gap-2"
+                                >
+                                    <FolderPlus className="size-4" />
+                                    Create Your First Folder
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {folders.map((folder) => (
+                                    <div
+                                        key={folder.id}
+                                        onClick={() => setSelectedFolderId(folder.id)}
+                                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all group ${selectedFolderId === folder.id
+                                            ? "border-primary bg-primary/5"
+                                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <Folder
+                                                className="size-5"
+                                                style={{ color: folder.color || "#6366f1" }}
+                                            />
+                                            <span className="font-medium">{folder.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-muted-foreground">
+                                                {folder.flashcardCount}
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setFolderToDelete(folder.id)
+                                                }}
+                                                className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                                                title="Delete folder"
+                                            >
+                                                <Trash2 className="size-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

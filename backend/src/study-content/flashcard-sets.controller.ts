@@ -2,13 +2,14 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@n
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateFlashcardSetDto } from './dto/create-flashcard-set.dto';
+import { MoveToFolderDto } from './dto/move-to-folder.dto';
 import { UpdateFlashcardSetDto } from './dto/update-flashcard-set.dto';
 import { FlashcardSetsService } from './flashcard-sets.service';
 
 @Controller('flashcard-sets')
 @UseGuards(JwtAuthGuard)
 export class FlashcardSetsController {
-  constructor(private readonly flashcardSetsService: FlashcardSetsService) {}
+  constructor(private readonly flashcardSetsService: FlashcardSetsService) { }
 
   @Post()
   create(@CurrentUser() user: any, @Body() createDto: CreateFlashcardSetDto) {
@@ -32,6 +33,23 @@ export class FlashcardSetsController {
     @Body() updateDto: UpdateFlashcardSetDto,
   ) {
     return this.flashcardSetsService.update(user.id, id, updateDto);
+  }
+
+  @Patch(':id/folder')
+  async moveToFolder(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() moveToFolderDto: MoveToFolderDto,
+  ) {
+    const flashcardSet = await this.flashcardSetsService.moveToFolder(
+      user.id,
+      id,
+      moveToFolderDto.folderId,
+    );
+    return {
+      success: true,
+      data: flashcardSet,
+    };
   }
 
   @Delete(':id')

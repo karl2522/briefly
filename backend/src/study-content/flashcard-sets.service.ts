@@ -6,7 +6,7 @@ import { UpdateFlashcardSetDto } from './dto/update-flashcard-set.dto';
 
 @Injectable()
 export class FlashcardSetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(userId: string, createDto: CreateFlashcardSetDto) {
     return this.prisma.flashcardSet.create({
@@ -90,6 +90,33 @@ export class FlashcardSetsService {
           },
         }),
       },
+      include: {
+        flashcards: {
+          orderBy: { order: 'asc' },
+        },
+      },
+    });
+  }
+
+  async moveToFolder(userId: string, id: string, folderId: string | null) {
+    // Verify ownership
+    await this.findOne(userId, id);
+
+    // If folderId is provided, verify it exists and belongs to user
+    if (folderId) {
+      const folder = await this.prisma.folder.findFirst({
+        where: { id: folderId, userId },
+      });
+
+      if (!folder) {
+        throw new NotFoundException('Folder not found');
+      }
+    }
+
+    // Update flashcard set's folderId
+    return this.prisma.flashcardSet.update({
+      where: { id },
+      data: { folderId },
       include: {
         flashcards: {
           orderBy: { order: 'asc' },

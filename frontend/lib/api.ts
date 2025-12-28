@@ -530,6 +530,40 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Folder endpoints
+  async getFolders(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/folders', {
+      method: 'GET',
+    });
+  }
+
+  async createFolder(data: { name: string; color?: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('/folders', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFolder(id: string, data: { name?: string; color?: string }): Promise<ApiResponse<any>> {
+    return this.request<any>(`/folders/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteFolder(id: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>(`/folders/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async moveFlashcardSetToFolder(setId: string, folderId: string | null): Promise<ApiResponse<any>> {
+    return this.request<any>(`/flashcard-sets/${setId}/folder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ folderId }),
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

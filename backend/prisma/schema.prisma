@@ -31,6 +31,7 @@ model User {
   quizSets      QuizSet[]
   studyGuides   StudyGuide[]
   summaries     Summary[]
+  folders       Folder[]
 
   @@map("users")
 }
@@ -53,14 +54,17 @@ model FlashcardSet {
   id        String   @id @default(cuid())
   userId    String
   topic     String
+  folderId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   flashcards Flashcard[]
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([folderId])
   @@index([createdAt])
   @@map("flashcard_sets")
 }
@@ -146,6 +150,22 @@ model Summary {
   @@index([userId])
   @@index([createdAt])
   @@map("summaries")
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String?  @default("#6366f1") // Default indigo color
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  flashcardSets FlashcardSet[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("folders")
 }
 
 
