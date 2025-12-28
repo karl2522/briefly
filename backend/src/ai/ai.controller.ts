@@ -1,5 +1,4 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FlashcardSetsService } from '../study-content/flashcard-sets.service';
@@ -21,16 +20,15 @@ export class AiController {
     private readonly quizSetsService: QuizSetsService,
     private readonly studyGuidesService: StudyGuidesService,
     private readonly summariesService: SummariesService,
-  ) {}
+  ) { }
 
   @Post('flashcards')
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async generateFlashcards(
     @Body() dto: GenerateFlashcardsDto,
     @CurrentUser() user: any,
   ) {
     const flashcards = await this.geminiService.generateFlashcards(dto.text, dto.topic);
-    
+
     // Auto-save to database
     const flashcardSet = await this.flashcardSetsService.create(user.id, {
       topic: dto.topic || 'Untitled',
@@ -51,11 +49,10 @@ export class AiController {
   }
 
   @Post('summarize')
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async summarizeText(@Body() dto: SummarizeTextDto, @CurrentUser() user: any) {
     const length = dto.length || 'medium'; // Default to 'medium' if not provided
     const summary = await this.geminiService.summarizeText(dto.text, length);
-    
+
     // Auto-save to database
     const savedSummary = await this.summariesService.create(user.id, {
       text: dto.text,
@@ -77,13 +74,12 @@ export class AiController {
   }
 
   @Post('study-guide')
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async generateStudyGuide(
     @Body() dto: GenerateStudyGuideDto,
     @CurrentUser() user: any,
   ) {
     const studyGuide = await this.geminiService.generateStudyGuide(dto.content, dto.subject);
-    
+
     // Auto-save to database
     const savedStudyGuide = await this.studyGuidesService.create(user.id, {
       content: dto.content,
@@ -101,20 +97,19 @@ export class AiController {
   }
 
   @Post('quiz')
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async generateQuiz(@Body() dto: GenerateQuizDto, @CurrentUser() user: any) {
     const quiz = await this.geminiService.generateQuiz(
       dto.content,
       dto.numberOfQuestions,
       dto.difficulty,
     );
-    
+
     // Auto-save to database
     // Generate topic from first question if available
     const topic = quiz.length > 0 && quiz[0].question
       ? quiz[0].question.substring(0, 50).trim() + (quiz[0].question.length > 50 ? '...' : '')
       : 'Untitled Quiz';
-    
+
     const quizSet = await this.quizSetsService.create(user.id, {
       topic,
       numberOfQuestions: dto.numberOfQuestions || quiz.length,

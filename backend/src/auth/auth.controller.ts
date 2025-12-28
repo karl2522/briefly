@@ -1,39 +1,43 @@
 import {
-    Body,
-    Controller,
-    Get,
-    HttpCode,
-    HttpStatus,
-    Post,
-    Req,
-    Res,
-    UseFilters,
-    UseGuards,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UseFilters,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { ExchangeCodeDto } from './dto/exchange-code.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { OAuthExceptionFilter } from './filters/oauth-exception.filter';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RedisAuthService } from './services/redis-auth.service';
 import { clearAuthCookies, setAuthCookies } from './utils/cookie.util';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly redisAuthService: RedisAuthService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   async register(@Body() registerDto: RegisterDto, @Res() res: Response) {
     const authResponse = await this.authService.register(registerDto);
     // Set tokens in httpOnly cookies
@@ -50,7 +54,8 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async login(@Body() loginDto: LoginDto, @Res() res: Response) {
     const authResponse = await this.authService.login(loginDto);
     // Set tokens in httpOnly cookies
@@ -67,24 +72,25 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async refresh(@Req() req: Request, @Res() res: Response) {
     // Get refresh token from cookie (preferred) or body (fallback for backward compatibility)
     const refreshToken = req.cookies?.refreshToken || (req.body as any)?.refreshToken;
-    
+
     if (!refreshToken) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         success: false,
         error: 'Refresh token is required',
       });
     }
-    
+
     // Refresh token (this validates, deletes old token, and generates new ones)
     const authResponse = await this.authService.refreshToken(refreshToken);
-    
+
     // Set new tokens in httpOnly cookies
     setAuthCookies(res, authResponse.accessToken, authResponse.refreshToken, this.configService);
-    
+
     // Return user data only (tokens are in cookies)
     return res.json({
       success: true,
@@ -110,7 +116,8 @@ export class AuthController {
   // Google OAuth - Single endpoint that handles both signup and signin
   @Public()
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(ThrottlerGuard, AuthGuard('google'))
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async googleAuth(@Req() req: Request, @Res() res: Response) {
     // Get mode from query parameter
     const mode = (req.query?.mode as string) || 'signin';
@@ -118,7 +125,7 @@ export class AuthController {
       // Invalid mode, default to signin
       return;
     }
-    
+
     // Store mode in a cookie that will be available in the callback
     res.cookie('oauth_mode', mode, {
       httpOnly: true,
@@ -126,21 +133,22 @@ export class AuthController {
       sameSite: 'lax', // Use 'lax' for cross-domain OAuth flows (frontend on Vercel, backend on Railway)
       maxAge: 5 * 60 * 1000, // 5 minutes
     });
-    
+
     // Guard redirects to Google (this will happen automatically)
   }
 
   @Public()
   @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(ThrottlerGuard, AuthGuard('google'))
   @UseFilters(OAuthExceptionFilter)
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async googleCallback(@Req() req: Request, @Res() res: Response) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const user = req.user as any;
     // Get mode from cookie (set before OAuth redirect)
     const mode = req.cookies?.oauth_mode as string;
     const isSignup = mode === 'signup';
-    
+
     // Clear the cookie after use
     res.clearCookie('oauth_mode');
 
@@ -153,11 +161,14 @@ export class AuthController {
     }
 
     try {
-      const tokens = await this.authService.generateTokens(user.id, user.email);
-      // Set tokens in httpOnly cookies instead of URL
-      setAuthCookies(res, tokens.accessToken, tokens.refreshToken, this.configService);
-      // Redirect to callback page (tokens are in cookies, not URL)
-      res.redirect(`${frontendUrl}/auth/callback?success=true`);
+      // OAuth 2.0 Authorization Code Flow:
+      // Create temporary auth code instead of setting cookies directly
+      // This fixes iOS Safari cookie blocking issues
+      const authCode = await this.redisAuthService.createAuthCode(user.id);
+
+      // Redirect with auth code (NOT tokens)
+      // Frontend will exchange this code for tokens via /auth/exchange-code
+      res.redirect(`${frontendUrl}/auth/callback?code=${authCode}`);
     } catch (error) {
       const redirectPage = isSignup ? '/sign-up' : '/sign-in';
       const errorUrl = new URL(redirectPage, frontendUrl);
@@ -170,7 +181,8 @@ export class AuthController {
   // Facebook OAuth - Single endpoint that handles both signup and signin
   @Public()
   @Get('facebook')
-  @UseGuards(AuthGuard('facebook'))
+  @UseGuards(ThrottlerGuard, AuthGuard('facebook'))
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async facebookAuth(@Req() req: Request, @Res() res: Response) {
     // Get mode from query parameter
     const mode = (req.query?.mode as string) || 'signin';
@@ -178,7 +190,7 @@ export class AuthController {
       // Invalid mode, default to signin
       return;
     }
-    
+
     // Store mode in a cookie that will be available in the callback
     res.cookie('oauth_mode', mode, {
       httpOnly: true,
@@ -186,21 +198,22 @@ export class AuthController {
       sameSite: 'lax', // Use 'lax' for cross-domain OAuth flows (frontend on Vercel, backend on Railway)
       maxAge: 5 * 60 * 1000, // 5 minutes
     });
-    
+
     // Guard redirects to Facebook (this will happen automatically)
   }
 
   @Public()
   @Get('facebook/callback')
-  @UseGuards(AuthGuard('facebook'))
+  @UseGuards(ThrottlerGuard, AuthGuard('facebook'))
   @UseFilters(OAuthExceptionFilter)
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async facebookCallback(@Req() req: Request, @Res() res: Response) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const user = req.user as any;
     // Get mode from cookie (set before OAuth redirect)
     const mode = req.cookies?.oauth_mode as string;
     const isSignup = mode === 'signup';
-    
+
     // Clear the cookie after use
     res.clearCookie('oauth_mode');
 
@@ -213,11 +226,14 @@ export class AuthController {
     }
 
     try {
-      const tokens = await this.authService.generateTokens(user.id, user.email);
-      // Set tokens in httpOnly cookies instead of URL
-      setAuthCookies(res, tokens.accessToken, tokens.refreshToken, this.configService);
-      // Redirect to callback page (tokens are in cookies, not URL)
-      res.redirect(`${frontendUrl}/auth/callback?success=true`);
+      // OAuth 2.0 Authorization Code Flow:
+      // Create temporary auth code instead of setting cookies directly
+      // This fixes iOS Safari cookie blocking issues
+      const authCode = await this.redisAuthService.createAuthCode(user.id);
+
+      // Redirect with auth code (NOT tokens)
+      // Frontend will exchange this code for tokens via /auth/exchange-code
+      res.redirect(`${frontendUrl}/auth/callback?code=${authCode}`);
     } catch (error) {
       const redirectPage = isSignup ? '/sign-up' : '/sign-in';
       const errorUrl = new URL(redirectPage, frontendUrl);
@@ -225,6 +241,59 @@ export class AuthController {
       errorUrl.searchParams.set('message', 'An error occurred during authentication.');
       res.redirect(errorUrl.toString());
     }
+  }
+  /**
+   * OAuth 2.0 Authorization Code Exchange Endpoint
+   * Exchanges temporary auth code for access/refresh tokens
+   * Tokens are set as httpOnly cookies (works on iOS)
+   */
+  @Public()
+  @Post('exchange-code')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
+  async exchangeCode(@Body() dto: ExchangeCodeDto, @Res() res: Response) {
+    // Exchange auth code for userId
+    const userId = await this.redisAuthService.exchangeAuthCode(dto.code);
+
+    if (!userId) {
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        success: false,
+        error: 'Invalid or expired authorization code',
+      });
+    }
+
+    // Get user from database
+    const user = await this.authService['prisma'].user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Generate tokens
+    const tokens = await this.authService.generateTokens(user.id, user.email);
+
+    // Set tokens in httpOnly cookies (same-domain context, works on iOS)
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken, this.configService);
+
+    // Return success (tokens are in cookies)
+    return res.json({
+      success: true,
+      data: {
+        user,
+      },
+    });
   }
 }
 

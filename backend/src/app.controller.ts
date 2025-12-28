@@ -1,5 +1,4 @@
 import { Controller, Get, Res } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import * as crypto from 'crypto';
 import type { Response } from 'express';
 import { AppService } from './app.service';
@@ -8,7 +7,7 @@ import { safeLog } from './common/utils/logger.util';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
   @Public()
   @Get()
@@ -27,11 +26,10 @@ export class AppController {
 
   @Public()
   @Get('csrf-token')
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   getCsrfToken(@Res() res: Response) {
     // Generate CSRF token
     const csrfToken = crypto.randomBytes(32).toString('hex');
-    
+
     // Set CSRF token in httpOnly cookie
     // For cross-domain requests (frontend on Vercel, backend on Railway):
     // Use sameSite: 'none' with secure: true
@@ -44,7 +42,7 @@ export class AppController {
       path: '/',
       // NO domain attribute - cookies will be scoped to backend domain
     });
-    
+
     safeLog.log('[CSRF Token] Setting cookie with options:', {
       httpOnly: true,
       secure: isProduction,
@@ -52,7 +50,7 @@ export class AppController {
       maxAge: 24 * 60 * 60 * 1000,
       path: '/',
     });
-    
+
     // Return token in response body (frontend will read this)
     return res.json({
       success: true,

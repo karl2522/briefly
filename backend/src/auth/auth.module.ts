@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { RedisAuthService } from './services/redis-auth.service';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
@@ -19,7 +20,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       useFactory: async (configService: ConfigService) => {
         const secret = configService.get<string>('app.jwt.secret');
         const expiresIn = configService.get<string>('app.jwt.expiresIn') || '15m';
-        
+
         if (!secret) {
           throw new Error('JWT_SECRET is not defined');
         }
@@ -37,14 +38,15 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   controllers: [AuthController],
   providers: [
     AuthService,
+    RedisAuthService,
     JwtStrategy,
     JwtRefreshStrategy,
     GoogleStrategy,
     FacebookStrategy,
   ],
-  exports: [AuthService],
+  exports: [AuthService, RedisAuthService],
 })
-export class AuthModule {}
+export class AuthModule { }
 
 
 
