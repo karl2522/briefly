@@ -40,12 +40,18 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   async register(@Body() registerDto: RegisterDto, @Res() res: Response) {
     const authResponse = await this.authService.register(registerDto);
-    // Set tokens in httpOnly cookies
-    setAuthCookies(res, authResponse.accessToken, authResponse.refreshToken, this.configService);
-    // Return user data only (tokens are in cookies)
+
+    // OAuth 2.0 Authorization Code Flow:
+    // Create temporary auth code instead of setting cookies directly
+    // This fixes iOS Safari cookie blocking issues
+    const authCode = await this.redisAuthService.createAuthCode(authResponse.user.id);
+
+    // Return auth code (NOT tokens)
+    // Frontend will exchange this code for tokens via /auth/exchange-code
     return res.json({
       success: true,
       data: {
+        code: authCode,
         user: authResponse.user,
       },
     });
@@ -58,12 +64,18 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   async login(@Body() loginDto: LoginDto, @Res() res: Response) {
     const authResponse = await this.authService.login(loginDto);
-    // Set tokens in httpOnly cookies
-    setAuthCookies(res, authResponse.accessToken, authResponse.refreshToken, this.configService);
-    // Return user data only (tokens are in cookies)
+
+    // OAuth 2.0 Authorization Code Flow:
+    // Create temporary auth code instead of setting cookies directly
+    // This fixes iOS Safari cookie blocking issues
+    const authCode = await this.redisAuthService.createAuthCode(authResponse.user.id);
+
+    // Return auth code (NOT tokens)
+    // Frontend will exchange this code for tokens via /auth/exchange-code
     return res.json({
       success: true,
       data: {
+        code: authCode,
         user: authResponse.user,
       },
     });
@@ -73,7 +85,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
+  @Throttle({ default: { limit: 60, ttl: 60000 } }) // 60 requests per minute (iOS can trigger multiple refreshes)
   async refresh(@Req() req: Request, @Res() res: Response) {
     // Get refresh token from cookie (preferred) or body (fallback for backward compatibility)
     const refreshToken = req.cookies?.refreshToken || (req.body as any)?.refreshToken;
