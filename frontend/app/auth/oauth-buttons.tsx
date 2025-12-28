@@ -55,7 +55,7 @@ export function OAuthButtons({ onClick, mode = "signin" }: OAuthButtonsProps) {
 
         // Redirect to OAuth endpoint with mode as query parameter
         const endpoint = `${API_BASE_URL}/auth/${provider}?mode=${mode}`;
-        
+
         window.location.href = endpoint;
     };
 
