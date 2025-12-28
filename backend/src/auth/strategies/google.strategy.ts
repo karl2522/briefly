@@ -6,6 +6,8 @@ import { safeLog } from '../../common/utils/logger.util';
 import { sanitizeName } from '../../common/utils/sanitize.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
+import { OAuthStateUtil } from '../../auth/utils/state.util';
+
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
@@ -27,6 +29,21 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       scope: ['email', 'profile'],
       passReqToCallback: true, // Enable access to request in validate
       state: true, // Enable state parameter to pass mode (signup/signin)
+      store: {
+        store: (req, meta, cb) => {
+          // We don't use sessions, so just return the generated state
+          cb(null, meta);
+        },
+        verify: (req, state, cb) => {
+          // Verify signature and expiration
+          const payload = OAuthStateUtil.verifyState(state);
+          if (payload) {
+            cb(null, true, state);
+          } else {
+            cb(new Error('Invalid or expired OAuth state'), false);
+          }
+        }
+      } as any,
     });
   }
 
@@ -68,9 +85,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
 
     try {
-      // Get mode from query parameter (passed via OAuth state)
-      // This works on iOS Safari, unlike cookies which get blocked
-      const mode = req.query?.mode as string;
+      // Decode and verify state to get mode
+      const statePayload = OAuthStateUtil.verifyState(req.query.state as string);
+      if (!statePayload) {
+        return done(new Error('Invalid or expired OAuth state'), false);
+      }
+
+      const mode = statePayload.mode;
       const isSignup = mode === 'signup';
       // Ensure Prisma connection is active (reconnect if needed)
       try {

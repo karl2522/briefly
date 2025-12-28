@@ -1,8 +1,8 @@
 import {
-    CanActivate,
-    ExecutionContext,
-    ForbiddenException,
-    Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
@@ -11,11 +11,11 @@ import { safeLog } from '../utils/logger.util';
 
 @Injectable()
 export class CsrfGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    
+
     // Skip CSRF check for GET, HEAD, OPTIONS requests
     if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       return true;
@@ -26,17 +26,26 @@ export class CsrfGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    
+
     if (isPublic) {
       return true;
     }
-    
+
+    // Hybrid Storage / iOS Support (fixes "Invalid CSRF token" on iOS):
+    // If the request has a valid Authorization header (Bearer token), we can skip CSRF check
+    // because custom headers (like Authorization) cannot be sent by classic CSRF attacks.
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      safeLog.log('[CSRF Guard] Skipping CSRF check due to Authorization header (Hybrid Storage)');
+      return true;
+    }
+
     // Get CSRF token from header
     const csrfToken = request.headers['x-csrf-token'] as string;
-    
+
     // Get CSRF token from cookie
     const csrfCookie = request.cookies?.['csrf-token'];
-    
+
     // Debug logging for CSRF token issues
     safeLog.log('[CSRF Guard] Checking CSRF token:', {
       method: request.method,
@@ -48,7 +57,7 @@ export class CsrfGuard implements CanActivate {
       tokensMatch: csrfToken === csrfCookie,
       cookiesReceived: request.cookies ? Object.keys(request.cookies) : 'no cookies',
     });
-    
+
     // Validate CSRF token
     if (!csrfToken || !csrfCookie || csrfToken !== csrfCookie) {
       safeLog.error('[CSRF Guard] CSRF token validation failed:', {
@@ -58,7 +67,7 @@ export class CsrfGuard implements CanActivate {
       });
       throw new ForbiddenException('Invalid CSRF token');
     }
-    
+
     safeLog.log('[CSRF Guard] CSRF token validated successfully');
 
     return true;

@@ -21,9 +21,12 @@ import { ExchangeCodeDto } from './dto/exchange-code.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { OAuthExceptionFilter } from './filters/oauth-exception.filter';
+import { FacebookAuthGuard } from './guards/facebook-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RedisAuthService } from './services/redis-auth.service';
 import { clearAuthCookies, setAuthCookies } from './utils/cookie.util';
+import { OAuthStateUtil } from './utils/state.util';
 
 @Controller('auth')
 export class AuthController {
@@ -130,7 +133,7 @@ export class AuthController {
   // Google OAuth - Single endpoint that handles both signup and signin
   @Public()
   @Get('google')
-  @UseGuards(ThrottlerGuard, AuthGuard('google'))
+  @UseGuards(ThrottlerGuard, GoogleAuthGuard)
   @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async googleAuth(@Req() req: Request, @Res() res: Response) {
     // Mode is passed via OAuth state parameter (not cookies, which iOS Safari blocks)
@@ -147,7 +150,10 @@ export class AuthController {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const user = req.user as any;
     // Get mode from query parameter (passed via OAuth state)
-    const mode = req.query?.mode as string;
+    // Decode signed state to get mode
+    const statePayload = OAuthStateUtil.verifyState(req.query?.state as string);
+    // If state is invalid, default to signin to be safe (or handle error)
+    const mode = statePayload?.mode || 'signin';
     const isSignup = mode === 'signup';
 
 
@@ -180,7 +186,7 @@ export class AuthController {
   // Facebook OAuth - Single endpoint that handles both signup and signin
   @Public()
   @Get('facebook')
-  @UseGuards(ThrottlerGuard, AuthGuard('facebook'))
+  @UseGuards(ThrottlerGuard, FacebookAuthGuard)
   @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async facebookAuth(@Req() req: Request, @Res() res: Response) {
     // Mode is passed via OAuth state parameter (not cookies, which iOS Safari blocks)
@@ -189,14 +195,15 @@ export class AuthController {
 
   @Public()
   @Get('facebook/callback')
-  @UseGuards(ThrottlerGuard, AuthGuard('facebook'))
+  @UseGuards(ThrottlerGuard, FacebookAuthGuard)
   @UseFilters(OAuthExceptionFilter)
   @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async facebookCallback(@Req() req: Request, @Res() res: Response) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const user = req.user as any;
     // Get mode from query parameter (passed via OAuth state)
-    const mode = req.query?.mode as string;
+    const statePayload = OAuthStateUtil.verifyState(req.query?.state as string);
+    const mode = statePayload?.mode || 'signin';
     const isSignup = mode === 'signup';
 
     if (!user || !user.id || !user.email) {
