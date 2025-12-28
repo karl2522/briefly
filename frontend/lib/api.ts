@@ -189,18 +189,23 @@ class ApiClient {
       // Backend wraps successful responses in ApiResponse format via TransformInterceptor
       const responseData = data as ApiResponse<T>;
       if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-        // Check if response contains tokens (Hybrid Storage) and save them
-        if (responseData.success && responseData.data) {
-          const resData = responseData.data as any;
-          if (resData.accessToken && resData.refreshToken) {
-            this.setTokens(resData.accessToken, resData.refreshToken);
+        // Check if success is true
+        if (responseData.success) {
+          // Check if response contains tokens (Hybrid Storage) and save them
+          if (responseData.data) {
+            const resData = responseData.data as any;
+            if (resData.accessToken && resData.refreshToken) {
+              this.setTokens(resData.accessToken, resData.refreshToken);
+            }
           }
 
           return {
             success: true,
             data: responseData.data,
+            message: responseData.message,
           };
         }
+
         // If success is false but we got 200, still return error
         return {
           success: false,

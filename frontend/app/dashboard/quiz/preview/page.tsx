@@ -4,7 +4,24 @@ import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { apiClient } from "@/lib/api"
-import { ArrowLeft, Check, GraduationCap, Loader2, Save, Target } from "lucide-react"
+import {
+    closestCenter,
+    DndContext,
+    DragEndEvent,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core"
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { ArrowLeft, Check, Edit2, GraduationCap, GripVertical, Loader2, Save, Target, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 
@@ -12,6 +29,200 @@ interface QuizQuestion {
     question: string
     options: string[]
     correctAnswer: number
+}
+
+interface SortableQuizQuestionProps {
+    question: QuizQuestion
+    index: number
+    isEditing: boolean
+    onEdit: () => void
+    onSave: (question: string, options: string[], correctAnswer: number) => void
+    onCancel: () => void
+    editedQuestion: string
+    editedOptions: string[]
+    editedCorrectAnswer: number
+    setEditedQuestion: (value: string) => void
+    setEditedOptions: (value: string[]) => void
+    setEditedCorrectAnswer: (value: number) => void
+}
+
+function SortableQuizQuestion({
+    question,
+    index,
+    isEditing,
+    onEdit,
+    onSave,
+    onCancel,
+    editedQuestion,
+    editedOptions,
+    editedCorrectAnswer,
+    setEditedQuestion,
+    setEditedOptions,
+    setEditedCorrectAnswer,
+}: SortableQuizQuestionProps) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: `quiz-${index}`,
+    })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    }
+
+    const handleOptionChange = (optionIndex: number, value: string) => {
+        const newOptions = [...editedOptions]
+        newOptions[optionIndex] = value
+        setEditedOptions(newOptions)
+    }
+
+    const handleAddOption = () => {
+        setEditedOptions([...editedOptions, ""])
+    }
+
+    const handleRemoveOption = (optionIndex: number) => {
+        if (editedOptions.length <= 2) return // Keep at least 2 options
+        const newOptions = editedOptions.filter((_, i) => i !== optionIndex)
+        setEditedOptions(newOptions)
+        // Adjust correct answer if needed
+        if (editedCorrectAnswer >= newOptions.length) {
+            setEditedCorrectAnswer(newOptions.length - 1)
+        } else if (editedCorrectAnswer > optionIndex) {
+            setEditedCorrectAnswer(editedCorrectAnswer - 1)
+        }
+    }
+
+    return (
+        <div ref={setNodeRef} style={style} className="relative">
+            <Card className="border-primary/20 hover:border-primary/40 transition-colors">
+                <CardContent className="p-6 space-y-4">
+                    {/* Drag Handle */}
+                    <div className="absolute top-4 right-4 flex items-center gap-2">
+                        <button
+                            {...attributes}
+                            {...listeners}
+                            className="p-1.5 rounded-md hover:bg-muted cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label="Drag to reorder"
+                        >
+                            <GripVertical className="size-4" />
+                        </button>
+                        {!isEditing && (
+                            <button
+                                onClick={onEdit}
+                                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                                aria-label="Edit question"
+                            >
+                                <Edit2 className="size-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    {isEditing ? (
+                        <div className="space-y-4">
+                            <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                                    Question {index + 1}
+                                </div>
+                                <textarea
+                                    value={editedQuestion}
+                                    onChange={(e) => setEditedQuestion(e.target.value)}
+                                    className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px] pr-16"
+                                    placeholder="Enter question..."
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="border-t border-border pt-4">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Options
+                                </div>
+                                <div className="space-y-2">
+                                    {editedOptions.map((option, optionIndex) => (
+                                        <div key={optionIndex} className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name={`correct-${index}`}
+                                                checked={editedCorrectAnswer === optionIndex}
+                                                onChange={() => setEditedCorrectAnswer(optionIndex)}
+                                                className="size-4 text-primary"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={option}
+                                                onChange={(e) => handleOptionChange(optionIndex, e.target.value)}
+                                                className="flex-1 rounded-lg border border-input bg-background px-4 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                placeholder={`Option ${String.fromCharCode(65 + optionIndex)}`}
+                                            />
+                                            {editedOptions.length > 2 && (
+                                                <button
+                                                    onClick={() => handleRemoveOption(optionIndex)}
+                                                    className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                                    aria-label="Remove option"
+                                                >
+                                                    <X className="size-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <Button
+                                        onClick={handleAddOption}
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                        disabled={editedOptions.length >= 6}
+                                    >
+                                        + Add Option
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <Button onClick={onCancel} variant="outline" size="sm">
+                                    <X className="size-4 mr-2" />
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={() => onSave(editedQuestion, editedOptions, editedCorrectAnswer)}
+                                    size="sm"
+                                    disabled={!editedQuestion.trim() || editedOptions.some(opt => !opt.trim()) || editedOptions.length < 2}
+                                >
+                                    <Save className="size-4 mr-2" />
+                                    Save
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                                    Question {index + 1}
+                                </div>
+                                <p className="text-base font-medium text-foreground leading-relaxed pr-16">
+                                    {question.question}
+                                </p>
+                            </div>
+                            <div className="border-t border-border pt-4">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Options
+                                </div>
+                                <div className="space-y-2">
+                                    {question.options.map((option, optionIndex) => (
+                                        <div
+                                            key={optionIndex}
+                                            className="rounded-lg border border-border bg-background p-3 text-sm text-foreground"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium">{String.fromCharCode(65 + optionIndex)}.</span>
+                                                <span>{option}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    )
 }
 
 function QuizPreviewContent() {
@@ -25,6 +236,19 @@ function QuizPreviewContent() {
     const [isSaved, setIsSaved] = useState(false)
     const [savedQuizId, setSavedQuizId] = useState<string | null>(null)
     const [showSuccess, setShowSuccess] = useState(false)
+
+    // Editing State
+    const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const [editedQuestion, setEditedQuestion] = useState("")
+    const [editedOptions, setEditedOptions] = useState<string[]>([])
+    const [editedCorrectAnswer, setEditedCorrectAnswer] = useState(0)
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    )
 
     useEffect(() => {
         // Get quiz from URL params or sessionStorage
@@ -80,7 +304,7 @@ function QuizPreviewContent() {
                 setDifficulty(stored as "easy" | "medium" | "hard")
             }
         }
-        
+
         // Check if quizSetId exists (already saved from generation)
         const quizSetId = sessionStorage.getItem("preview_quizSetId")
         if (quizSetId) {
@@ -89,64 +313,106 @@ function QuizPreviewContent() {
         }
     }, [searchParams])
 
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+
+        if (over && active.id !== over.id) {
+            const oldIndex = parseInt(active.id.toString().replace("quiz-", ""))
+            const newIndex = parseInt(over.id.toString().replace("quiz-", ""))
+
+            const newQuiz = arrayMove(quiz, oldIndex, newIndex)
+            setQuiz(newQuiz)
+            sessionStorage.setItem("preview_quiz", JSON.stringify(newQuiz))
+        }
+    }
+
+    const handleEdit = (index: number) => {
+        setEditingIndex(index)
+        setEditedQuestion(quiz[index].question)
+        setEditedOptions([...quiz[index].options])
+        setEditedCorrectAnswer(quiz[index].correctAnswer)
+    }
+
+    const handleSaveQuestion = (index: number, question: string, options: string[], correctAnswer: number) => {
+        if (question.trim() && options.every(opt => opt.trim()) && options.length >= 2) {
+            const newQuiz = [...quiz]
+            newQuiz[index] = {
+                question: question.trim(),
+                options: options.map(opt => opt.trim()),
+                correctAnswer,
+            }
+            setQuiz(newQuiz)
+            sessionStorage.setItem("preview_quiz", JSON.stringify(newQuiz))
+
+            setEditingIndex(null)
+            setEditedQuestion("")
+            setEditedOptions([])
+            setEditedCorrectAnswer(0)
+        }
+    }
+
+    const handleCancel = () => {
+        setEditingIndex(null)
+        setEditedQuestion("")
+        setEditedOptions([])
+        setEditedCorrectAnswer(0)
+    }
+
     const handleSave = async () => {
         if (quiz.length === 0) {
             return
         }
 
         setIsSaving(true)
-        
+
         try {
             // Check if already saved (from generation)
-            const existingId = sessionStorage.getItem("preview_quizSetId")
-            
-            if (existingId) {
-                // Already saved, just update the ID state
-                setSavedQuizId(existingId)
-            } else {
-                // Generate a meaningful title from topic or content
-                const generateTitle = () => {
-                    if (topic && topic.trim()) {
-                        return topic.trim()
-                    }
-                    // Extract title from first question if no topic
-                    if (quiz.length > 0 && quiz[0].question) {
-                        const firstQuestion = quiz[0].question
-                        // Get first sentence or first 50 characters
-                        const firstSentence = firstQuestion.split(/[.!?]/)[0].trim()
-                        if (firstSentence.length > 0 && firstSentence.length <= 60) {
-                            return firstSentence
-                        }
-                        return firstQuestion.substring(0, 50).trim() + "..."
-                    }
-                    // Fallback
-                    return `Quiz - ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`
-                }
-
-                // Create new quiz set via API
-                const response = await apiClient.createQuizSet({
-                    topic: generateTitle(),
-                    numberOfQuestions,
-                    difficulty,
-                    questions: quiz,
-                })
-                
-                if (response.success && response.data) {
-                    setSavedQuizId(response.data.id)
-                } else {
-                    console.error("Failed to save quiz set:", response.error)
-                    setIsSaving(false)
-                    return
-                }
+            if (isSaved && savedQuizId) {
+                return
             }
-            
+
+            // Generate a meaningful title from topic or content
+            const generateTitle = () => {
+                if (topic && topic.trim()) {
+                    return topic.trim()
+                }
+                // Extract title from first question if no topic
+                if (quiz.length > 0 && quiz[0].question) {
+                    const firstQuestion = quiz[0].question
+                    // Get first sentence or first 50 characters
+                    const firstSentence = firstQuestion.split(/[.!?]/)[0].trim()
+                    if (firstSentence.length > 0 && firstSentence.length <= 60) {
+                        return firstSentence
+                    }
+                    return firstQuestion.substring(0, 50).trim() + "..."
+                }
+                // Fallback
+                return `Quiz - ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`
+            }
+
+            // Create new quiz set via API
+            const response = await apiClient.createQuizSet({
+                topic: generateTitle(),
+                numberOfQuestions,
+                difficulty,
+                questions: quiz,
+            })
+
+            if (response.success && response.data) {
+                setSavedQuizId(response.data.id)
+            } else {
+                console.error("Failed to save quiz set:", response.error)
+                setIsSaving(false)
+                return
+            }
+
             // Show success state briefly
             setShowSuccess(true)
             await new Promise(resolve => setTimeout(resolve, 600))
-            
+
             setIsSaved(true)
             setShowSuccess(false)
-            
+
             // Clear sessionStorage
             sessionStorage.removeItem("preview_quiz")
             sessionStorage.removeItem("preview_quiz_content")
@@ -154,9 +420,8 @@ function QuizPreviewContent() {
             sessionStorage.removeItem("preview_quiz_numberOfQuestions")
             sessionStorage.removeItem("preview_quiz_difficulty")
             sessionStorage.removeItem("preview_quizSetId")
-            
-            // Update URL to remove query params after saving
-            router.replace("/dashboard/quiz/preview")
+
+            // We stay on page but update UI to show "Study Mode"
         } catch (err) {
             console.error("Failed to save quiz:", err)
         } finally {
@@ -215,6 +480,11 @@ function QuizPreviewContent() {
                                     <span>{quiz.length} questions</span>
                                 </span>
                                 <span className="capitalize">{difficulty}</span>
+                                {!isSaved && (
+                                    <span className="text-xs text-muted-foreground animate-pulse border-l border-border pl-4">
+                                        Preview - You can edit before saving
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -253,40 +523,36 @@ function QuizPreviewContent() {
                 </div>
             </div>
 
-            <div className="space-y-4">
-                {quiz.map((question, questionIndex) => (
-                    <Card key={questionIndex} className="border-primary/20 hover:border-primary/40 transition-colors">
-                        <CardContent className="p-6 space-y-4">
-                            <div>
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-                                    Question {questionIndex + 1}
-                                </div>
-                                <p className="text-base font-medium text-foreground leading-relaxed">
-                                    {question.question}
-                                </p>
-                            </div>
-                            <div className="border-t border-border pt-4">
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Options
-                                </div>
-                                <div className="space-y-2">
-                                    {question.options.map((option, optionIndex) => (
-                                        <div
-                                            key={optionIndex}
-                                            className="rounded-lg border border-border bg-background p-3 text-sm text-foreground"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-medium">{String.fromCharCode(65 + optionIndex)}.</span>
-                                                <span>{option}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+            >
+                <SortableContext
+                    items={quiz.map((_, index) => `quiz-${index}`)}
+                    strategy={verticalListSortingStrategy}
+                >
+                    <div className="space-y-4">
+                        {quiz.map((question, index) => (
+                            <SortableQuizQuestion
+                                key={`quiz-${index}`}
+                                question={question}
+                                index={index}
+                                isEditing={editingIndex === index}
+                                onEdit={() => handleEdit(index)}
+                                onSave={(question, options, correctAnswer) => handleSaveQuestion(index, question, options, correctAnswer)}
+                                onCancel={handleCancel}
+                                editedQuestion={editedQuestion}
+                                editedOptions={editedOptions}
+                                editedCorrectAnswer={editedCorrectAnswer}
+                                setEditedQuestion={setEditedQuestion}
+                                setEditedOptions={setEditedOptions}
+                                setEditedCorrectAnswer={setEditedCorrectAnswer}
+                            />
+                        ))}
+                    </div>
+                </SortableContext>
+            </DndContext>
         </DashboardLayout>
     )
 }

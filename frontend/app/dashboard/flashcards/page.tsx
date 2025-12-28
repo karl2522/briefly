@@ -3,8 +3,16 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api"
-import { BookOpen, Brain, Calendar, ChevronRight, FileText, Loader2, Sparkles, Upload, X } from "lucide-react"
+import { AlertCircle, BookOpen, Brain, Calendar, Check, ChevronRight, FileText, Loader2, Sparkles, Trash2, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
@@ -33,6 +41,14 @@ export default function FlashcardsPage() {
     const [isProcessingFile, setIsProcessingFile] = useState(false)
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [setToDelete, setSetToDelete] = useState<string | null>(null)
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
+
+    const showToast = (message: string, type: 'success' | 'error') => {
+        setToast({ message, type })
+        setTimeout(() => setToast(null), 3000)
+    }
 
     // Load saved flashcard sets from API
     useEffect(() => {
@@ -88,18 +104,6 @@ export default function FlashcardsPage() {
                     sessionStorage.setItem("preview_flashcardSetId", flashcardSetId)
                 }
 
-                // Refresh the sets list
-                const setsResponse = await apiClient.getFlashcardSets()
-                if (setsResponse.success && setsResponse.data) {
-                    const sets: FlashcardSet[] = setsResponse.data.map((set: any) => ({
-                        id: set.id,
-                        topic: set.topic,
-                        flashcards: set.flashcards || [],
-                        createdAt: set.createdAt,
-                    }))
-                    setSavedSets(sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
-                }
-
                 // Redirect to preview page
                 router.push(`/dashboard/flashcards/preview?flashcards=${encodeURIComponent(JSON.stringify(generatedFlashcards))}&topic=${encodeURIComponent(topic || "")}`)
             } else {
@@ -115,6 +119,33 @@ export default function FlashcardsPage() {
 
     const handleViewSet = (setId: string) => {
         router.push(`/dashboard/flashcards/${setId}`)
+    }
+
+    const handleDeleteClick = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation()
+        setSetToDelete(id)
+    }
+
+    const confirmDelete = async () => {
+        if (!setToDelete) return
+
+        setIsDeleting(true)
+        try {
+            const response = await apiClient.deleteFlashcardSet(setToDelete)
+            if (response.success) {
+                setSavedSets(prev => prev.filter(set => set.id !== setToDelete))
+                setSetToDelete(null)
+                showToast("Flashcard set deleted successfully", "success")
+            } else {
+                console.error("Failed to delete set:", response.error)
+                showToast(response.error || "Failed to delete set", "error")
+            }
+        } catch (err) {
+            console.error("Error deleting set:", err)
+            showToast("An error occurred while deleting", "error")
+        } finally {
+            setIsDeleting(false)
+        }
     }
 
     const formatDate = (dateString: string) => {
@@ -310,8 +341,8 @@ export default function FlashcardsPage() {
                                     <label
                                         htmlFor="file-upload"
                                         className={`flex items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed px-4 py-3 text-sm transition-colors cursor-pointer ${isProcessingFile
-                                                ? "border-muted bg-muted cursor-not-allowed"
-                                                : "border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/10"
+                                            ? "border-muted bg-muted cursor-not-allowed"
+                                            : "border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/10"
                                             }`}
                                     >
                                         {isProcessingFile ? (
@@ -417,10 +448,10 @@ export default function FlashcardsPage() {
                                 </div>
                             ) : savedSets.length > 0 ? (
                                 savedSets.map((set) => (
-                                    <button
+                                    <div
                                         key={set.id}
                                         onClick={() => handleViewSet(set.id)}
-                                        className="w-full text-left rounded-lg border border-border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all p-4 group cursor-pointer"
+                                        className="w-full text-left rounded-lg border border-border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all p-4 group cursor-pointer relative"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex-1 min-w-0">
@@ -439,9 +470,18 @@ export default function FlashcardsPage() {
                                                     </span>
                                                 </div>
                                             </div>
-                                            <ChevronRight className="size-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-0.5" />
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => handleDeleteClick(e, set.id)}
+                                                    className="p-2 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all cursor-pointer"
+                                                    title="Delete set"
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </button>
+                                                <ChevronRight className="size-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                                            </div>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))
                             ) : (
                                 <div className="flex flex-col items-center justify-center flex-1 py-12 text-center">
@@ -456,6 +496,48 @@ export default function FlashcardsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Dialog open={!!setToDelete} onOpenChange={(open) => !open && setSetToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Flashcard Set</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this flashcard set? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setSetToDelete(null)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={confirmDelete}
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <Loader2 className="mr-2 size-4 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                "Delete"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {toast && (
+                <div className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg animate-in slide-in-from-bottom-2 fade-in duration-300 ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-destructive text-destructive-foreground'
+                    }`}>
+                    {toast.type === 'success' ? <Check className="size-4" /> : <AlertCircle className="size-4" />}
+                    {toast.message}
+                </div>
+            )}
         </DashboardLayout>
     )
 }

@@ -29,21 +29,16 @@ export class AiController {
   ) {
     const flashcards = await this.geminiService.generateFlashcards(dto.text, dto.topic);
 
-    // Auto-save to database
-    const flashcardSet = await this.flashcardSetsService.create(user.id, {
-      topic: dto.topic || 'Untitled',
-      flashcards: flashcards.map((fc) => ({
-        question: fc.question,
-        answer: fc.answer,
-      })),
-    });
+    // Note: We do NOT auto-save here anymore. 
+    // The frontend uses a "Preview -> Save" workflow.
+    // The user must explicitly click "Save" on the preview page to persist the set.
 
     return {
       success: true,
       data: {
         flashcards,
         count: flashcards.length,
-        flashcardSetId: flashcardSet.id,
+        // No flashcardSetId returned, so frontend treats it as unsaved
       },
     };
   }
@@ -104,29 +99,19 @@ export class AiController {
       dto.difficulty,
     );
 
-    // Auto-save to database
-    // Generate topic from first question if available
-    const topic = quiz.length > 0 && quiz[0].question
+    // Generate topic from first question if available (for frontend preview)
+    const generatedTopic = quiz.length > 0 && quiz[0].question
       ? quiz[0].question.substring(0, 50).trim() + (quiz[0].question.length > 50 ? '...' : '')
       : 'Untitled Quiz';
 
-    const quizSet = await this.quizSetsService.create(user.id, {
-      topic,
-      numberOfQuestions: dto.numberOfQuestions || quiz.length,
-      difficulty: dto.difficulty || 'medium',
-      questions: quiz.map((q) => ({
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-      })),
-    });
+    // Note: Auto-save removed to support Preview -> Save workflow
 
     return {
       success: true,
       data: {
         quiz,
         count: quiz.length,
-        quizSetId: quizSet.id,
+        topic: generatedTopic,
       },
     };
   }

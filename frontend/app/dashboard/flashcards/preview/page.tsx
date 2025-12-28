@@ -5,13 +5,33 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { apiClient } from "@/lib/api"
 import {
+    closestCenter,
+    DndContext,
+    DragEndEvent,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core"
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
     ArrowLeft,
     BookOpen,
     Brain,
     Check,
+    Edit2,
     GraduationCap,
+    GripVertical,
     Loader2,
-    Save
+    Save,
+    X
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
@@ -19,6 +39,128 @@ import { Suspense, useEffect, useState } from "react"
 interface Flashcard {
     question: string
     answer: string
+}
+
+interface SortableFlashcardProps {
+    flashcard: Flashcard
+    index: number
+    isEditing: boolean
+    onEdit: () => void
+    onSave: (question: string, answer: string) => void
+    onCancel: () => void
+    editedQuestion: string
+    editedAnswer: string
+    setEditedQuestion: (value: string) => void
+    setEditedAnswer: (value: string) => void
+}
+
+function SortableFlashcard({
+    flashcard,
+    index,
+    isEditing,
+    onEdit,
+    onSave,
+    onCancel,
+    editedQuestion,
+    editedAnswer,
+    setEditedQuestion,
+    setEditedAnswer,
+}: SortableFlashcardProps) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: `flashcard-${index}`,
+    })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    }
+
+    return (
+        <div ref={setNodeRef} style={style} className="relative">
+            <Card className="border-primary/20 hover:border-primary/40 transition-colors">
+                <CardContent className="p-6 space-y-4">
+                    {/* Drag Handle & Edit Button */}
+                    <div className="absolute top-4 right-4 flex items-center gap-2">
+                        <button
+                            {...attributes}
+                            {...listeners}
+                            className="p-1.5 rounded-md hover:bg-muted cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label="Drag to reorder"
+                        >
+                            <GripVertical className="size-4" />
+                        </button>
+                        {!isEditing && (
+                            <button
+                                onClick={onEdit}
+                                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                                aria-label="Edit flashcard"
+                            >
+                                <Edit2 className="size-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    {isEditing ? (
+                        <div className="space-y-4">
+                            <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                                    Question {index + 1}
+                                </div>
+                                <textarea
+                                    value={editedQuestion}
+                                    onChange={(e) => setEditedQuestion(e.target.value)}
+                                    className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
+                                    placeholder="Enter question..."
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="border-t border-border pt-4">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Answer
+                                </div>
+                                <textarea
+                                    value={editedAnswer}
+                                    onChange={(e) => setEditedAnswer(e.target.value)}
+                                    className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[100px]"
+                                    placeholder="Enter answer..."
+                                />
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <Button onClick={onCancel} variant="outline" size="sm">
+                                    <X className="size-4 mr-2" />
+                                    Cancel
+                                </Button>
+                                <Button onClick={() => onSave(editedQuestion, editedAnswer)} size="sm">
+                                    <Save className="size-4 mr-2" />
+                                    Save
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                                    Question {index + 1}
+                                </div>
+                                <p className="text-base font-medium text-foreground leading-relaxed pr-16">
+                                    {flashcard.question}
+                                </p>
+                            </div>
+                            <div className="border-t border-border pt-4">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Answer
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed pr-16">
+                                    {flashcard.answer}
+                                </p>
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    )
 }
 
 function FlashcardPreviewContent() {
@@ -31,11 +173,23 @@ function FlashcardPreviewContent() {
     const [savedSetId, setSavedSetId] = useState<string | null>(null)
     const [showSuccess, setShowSuccess] = useState(false)
 
+    // Editing state
+    const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const [editedQuestion, setEditedQuestion] = useState("")
+    const [editedAnswer, setEditedAnswer] = useState("")
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    )
+
     useEffect(() => {
         // Get flashcards and topic from URL params or sessionStorage
         const flashcardsParam = searchParams.get("flashcards")
         const topicParam = searchParams.get("topic")
-        
+
         // Check if flashcardSetId exists (already saved from generation)
         const flashcardSetId = sessionStorage.getItem("preview_flashcardSetId")
 
@@ -44,6 +198,8 @@ function FlashcardPreviewContent() {
                 const parsed = JSON.parse(decodeURIComponent(flashcardsParam))
                 if (Array.isArray(parsed)) {
                     setFlashcards(parsed)
+                    // Sync to session storage (in case user reloads without params)
+                    sessionStorage.setItem("preview_flashcards", JSON.stringify(parsed))
                 }
             } catch (err) {
                 console.error("Failed to parse flashcards:", err)
@@ -66,8 +222,9 @@ function FlashcardPreviewContent() {
 
         if (topicParam) {
             setTopic(decodeURIComponent(topicParam))
+            sessionStorage.setItem("preview_topic", decodeURIComponent(topicParam))
         }
-        
+
         // If already saved, mark as saved
         if (flashcardSetId) {
             setIsSaved(true)
@@ -81,11 +238,11 @@ function FlashcardPreviewContent() {
         }
 
         setIsSaving(true)
-        
+
         try {
             // Check if already saved (from generation)
             const existingId = sessionStorage.getItem("preview_flashcardSetId")
-            
+
             if (existingId) {
                 // Already saved, just update the ID state
                 setSavedSetId(existingId)
@@ -95,7 +252,7 @@ function FlashcardPreviewContent() {
                     topic: topic || "Untitled",
                     flashcards,
                 })
-                
+
                 if (response.success && response.data) {
                     setSavedSetId(response.data.id)
                     // Clear sessionStorage after saving
@@ -107,19 +264,19 @@ function FlashcardPreviewContent() {
                     return
                 }
             }
-            
+
             // Show success state briefly
             setShowSuccess(true)
             await new Promise(resolve => setTimeout(resolve, 600))
-            
+
             setIsSaved(true)
             setShowSuccess(false)
-            
+
             // Clear sessionStorage
             sessionStorage.removeItem("preview_flashcards")
             sessionStorage.removeItem("preview_topic")
             sessionStorage.removeItem("preview_flashcardSetId")
-            
+
             // Update URL to remove query params after saving
             router.replace("/dashboard/flashcards/preview")
         } catch (err) {
@@ -135,13 +292,43 @@ function FlashcardPreviewContent() {
         }
     }
 
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString)
-        return date.toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-        })
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (over && active.id !== over.id) {
+            const oldIndex = parseInt(active.id.toString().replace("flashcard-", ""))
+            const newIndex = parseInt(over.id.toString().replace("flashcard-", ""))
+
+            setFlashcards((items) => {
+                const newItems = arrayMove(items, oldIndex, newIndex)
+                sessionStorage.setItem("preview_flashcards", JSON.stringify(newItems))
+                return newItems
+            })
+        }
+    }
+
+    const handleEdit = (index: number) => {
+        setEditingIndex(index)
+        setEditedQuestion(flashcards[index].question)
+        setEditedAnswer(flashcards[index].answer)
+    }
+
+    const handleEditSave = (question: string, answer: string) => {
+        if (editingIndex !== null && question.trim() && answer.trim()) {
+            const newFlashcards = [...flashcards]
+            newFlashcards[editingIndex] = { question: question.trim(), answer: answer.trim() }
+            setFlashcards(newFlashcards)
+            sessionStorage.setItem("preview_flashcards", JSON.stringify(newFlashcards))
+
+            setEditingIndex(null)
+            setEditedQuestion("")
+            setEditedAnswer("")
+        }
+    }
+
+    const handleCancel = () => {
+        setEditingIndex(null)
+        setEditedQuestion("")
+        setEditedAnswer("")
     }
 
     if (flashcards.length === 0) {
@@ -189,7 +376,9 @@ function FlashcardPreviewContent() {
                                     <BookOpen className="size-4" />
                                     {flashcards.length} flashcards
                                 </span>
-                                <span className="text-xs text-muted-foreground">Preview</span>
+                                {!isSaved && (
+                                    <span className="text-xs text-muted-foreground">Preview - You can edit before saving</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -228,30 +417,34 @@ function FlashcardPreviewContent() {
                 </div>
             </div>
 
-            <div className="space-y-4">
-                {flashcards.map((flashcard, index) => (
-                    <Card key={index} className="border-primary/20 hover:border-primary/40 transition-colors">
-                        <CardContent className="p-6 space-y-4">
-                            <div>
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-                                    Question {index + 1}
-                                </div>
-                                <p className="text-base font-medium text-foreground leading-relaxed">
-                                    {flashcard.question}
-                                </p>
-                            </div>
-                            <div className="border-t border-border pt-4">
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Answer
-                                </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                    {flashcard.answer}
-                                </p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+            >
+                <SortableContext
+                    items={flashcards.map((_, index) => `flashcard-${index}`)}
+                    strategy={verticalListSortingStrategy}
+                >
+                    <div className="space-y-4">
+                        {flashcards.map((flashcard, index) => (
+                            <SortableFlashcard
+                                key={`flashcard-${index}`}
+                                flashcard={flashcard}
+                                index={index}
+                                isEditing={editingIndex === index}
+                                onEdit={() => handleEdit(index)}
+                                onSave={(q, a) => handleEditSave(q, a)}
+                                onCancel={handleCancel}
+                                editedQuestion={editedQuestion}
+                                editedAnswer={editedAnswer}
+                                setEditedQuestion={setEditedQuestion}
+                                setEditedAnswer={setEditedAnswer}
+                            />
+                        ))}
+                    </div>
+                </SortableContext>
+            </DndContext>
         </DashboardLayout>
     )
 }
