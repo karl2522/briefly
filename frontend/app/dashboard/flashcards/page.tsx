@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { apiClient } from "@/lib/api"
 import { AlertCircle, BookOpen, Brain, Calendar, Check, ChevronRight, FileText, Folder, FolderPlus, Loader2, MoreVertical, Sparkles, Trash2, Upload, X } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
 
 // PDF.js and Mammoth are imported dynamically to avoid SSR issues with browser APIs
 
@@ -47,8 +47,10 @@ interface FolderType {
     createdAt: string
 }
 
-export default function FlashcardsPage() {
+function FlashcardsContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+
     const [text, setText] = useState("")
     const [topic, setTopic] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -70,6 +72,14 @@ export default function FlashcardsPage() {
     const [newFolderName, setNewFolderName] = useState("")
     const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
+
+    // Handle URL params for folder selection
+    useEffect(() => {
+        const folderId = searchParams.get('folderId')
+        if (folderId) {
+            setSelectedFolderId(folderId)
+        }
+    }, [searchParams])
 
     const showToast = (message: string, type: 'success' | 'error') => {
         setToast({ message, type })
@@ -892,6 +902,18 @@ export default function FlashcardsPage() {
                 </div>
             )}
         </DashboardLayout>
+    )
+}
+
+export default function FlashcardsPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center">
+                <Loader2 className="size-8 animate-spin text-primary" />
+            </div>
+        }>
+            <FlashcardsContent />
+        </Suspense>
     )
 }
 

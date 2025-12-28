@@ -9,20 +9,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { apiClient } from "@/lib/api"
 import { getStudyStreak } from "@/lib/streak"
 import { cn } from "@/lib/utils"
-import { BookOpen, Brain, Clock, FileText, Loader2, Target, TrendingUp } from "lucide-react"
+import { BookOpen, Brain, ChevronRight, Clock, Folder, Loader2, Plus, Target, TrendingUp } from "lucide-react"
 import Link from "next/link"
 
 type Flashcard = { question: string; answer: string }
 type FlashcardSet = { id: string; topic: string; flashcards: Flashcard[]; createdAt: string }
 type QuizQuestion = { question: string; options: string[]; correctAnswer: number }
 type QuizSet = { id: string; topic: string; quiz: QuizQuestion[]; numberOfQuestions: number; difficulty: string; createdAt: string }
+type FolderType = { id: string; name: string; color: string; flashcardCount?: number; quizCount?: number }
 
 export default function Dashboard() {
     const [flashcardSets, setFlashcardSets] = useState<FlashcardSet[]>([])
     const [quizSets, setQuizSets] = useState<QuizSet[]>([])
+    const [folders, setFolders] = useState<FolderType[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [streak, setStreak] = useState(0)
-    
+
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true)
@@ -52,6 +54,13 @@ export default function Dashboard() {
                     }))
                     setQuizSets(quizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
                 }
+
+                // Load folders
+                const foldersResponse = await apiClient.getFolders()
+                if (foldersResponse.success && foldersResponse.data) {
+                    setFolders(foldersResponse.data)
+                }
+
             } catch (err) {
                 console.error("Failed to load dashboard data:", err)
             } finally {
@@ -70,9 +79,11 @@ export default function Dashboard() {
     }, [flashcardSets, quizSets])
 
     const recentActivity = useMemo(() => {
-        const activities: { title: string; description: string; createdAt: string; color: string }[] = []
+        const activities: { id: string; type: 'flashcard' | 'quiz'; title: string; description: string; createdAt: string; color: string }[] = []
         flashcardSets.slice(0, 3).forEach((set, idx) => {
             activities.push({
+                id: set.id,
+                type: 'flashcard',
                 title: set.topic || "Flashcard Set",
                 description: `${set.flashcards.length} cards`,
                 createdAt: set.createdAt,
@@ -81,6 +92,8 @@ export default function Dashboard() {
         })
         quizSets.slice(0, 3).forEach((quiz, idx) => {
             activities.push({
+                id: quiz.id,
+                type: 'quiz',
                 title: quiz.topic || "Quiz",
                 description: `${quiz.quiz.length} questions`,
                 createdAt: quiz.createdAt,
@@ -91,10 +104,9 @@ export default function Dashboard() {
         return activities
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .map((item) => ({
-                title: item.title,
-                description: item.description,
+                ...item,
                 time: formatRelative(item.createdAt),
-                color: item.color,
+                link: item.type === 'flashcard' ? `/dashboard/flashcards/${item.id}` : `/dashboard/quiz/${item.id}`
             }))
     }, [flashcardSets, quizSets])
 
@@ -149,30 +161,73 @@ export default function Dashboard() {
                         ) : (
                             <div className="space-y-4">
                                 {recentActivity.slice(0, 6).map((item, idx) => (
-                                    <ActivityItem
-                                        key={idx}
-                                        title={item.title}
-                                        description={item.description}
-                                        time={item.time}
-                                        color={item.color}
-                                    />
+                                    <Link key={`${item.type}-${item.id}`} href={item.link} className="block group">
+                                        <ActivityItem
+                                            title={item.title}
+                                            description={item.description}
+                                            time={item.time}
+                                            color={item.color}
+                                        />
+                                    </Link>
                                 ))}
                             </div>
                         )}
                     </CardContent>
                 </Card>
 
-                {/* Quick Actions */}
-                <Card>
+                {/* Your Folders - Replacing Quick Actions */}
+                <Card className="flex flex-col">
                     <CardHeader>
-                        <CardTitle>Quick Actions</CardTitle>
-                        <CardDescription>Start studying in seconds</CardDescription>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Your Folders</CardTitle>
+                            <Link href="/dashboard/flashcards">
+                                <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-primary">
+                                    <Plus className="size-4" />
+                                </Button>
+                            </Link>
+                        </div>
+                        <CardDescription>Organize your study sets</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <QuickActionButton icon={<Brain />} label="Create Flashcards" href="/dashboard/flashcards" />
-                        <QuickActionButton icon={<FileText />} label="Summarize Text" href="/dashboard/summarizer" />
-                        <QuickActionButton icon={<BookOpen />} label="Generate Study Guide" href="/dashboard/study-guide" />
-                        <QuickActionButton icon={<Target />} label="Take a Quiz" href="/dashboard/quiz" />
+                    <CardContent className="flex-1">
+                        {isLoading ? (
+                            <div className="flex h-full items-center justify-center">
+                                <Loader2 className="size-6 animate-spin text-primary" />
+                            </div>
+                        ) : folders.length === 0 ? (
+                            <div className="flex h-full flex-col items-center justify-center space-y-3 py-6 text-center text-muted-foreground">
+                                <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+                                    <Folder className="size-6 opacity-50" />
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-foreground">No folders yet</p>
+                                    <p className="text-xs">Create your first folder to organize your sets.</p>
+                                </div>
+                                <Link href="/dashboard/flashcards" className="w-full">
+                                    <Button variant="outline" size="sm" className="w-full">
+                                        Create Folder
+                                    </Button>
+                                </Link>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {folders.slice(0, 5).map((folder) => (
+                                    <Link key={folder.id} href={`/dashboard/flashcards?folderId=${folder.id}`} className="block">
+                                        <div className="flex items-center justify-between rounded-lg border border-transparent p-2 transition-all hover:bg-muted/50 hover:border-border/50 group cursor-pointer">
+                                            <div className="flex items-center gap-3">
+                                                <Folder className="size-4 text-primary fill-primary/20" style={{ color: folder.color }} />
+                                                <span className="text-sm font-medium text-foreground">{folder.name}</span>
+                                            </div>
+                                            <ChevronRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                                        </div>
+                                    </Link>
+                                ))}
+                                {folders.length > 5 && (
+                                    <Link href="/dashboard/flashcards" className="block text-center text-xs text-muted-foreground hover:text-primary pt-2">
+                                        View all {folders.length} folders
+                                    </Link>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -223,42 +278,12 @@ function formatRelative(dateString: string) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined })
 }
 
-function NavItem({ icon, label, href, active = false }: { icon: React.ReactNode; label: string; href?: string; active?: boolean }) {
-    const content = (
-        <>
-            {icon}
-            <span>{label}</span>
-        </>
-    )
-
-    const className = cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
-        active
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-    )
-
-    if (href) {
-        return (
-            <Link href={href} className={className}>
-                {content}
-            </Link>
-        )
-    }
-
-    return (
-        <button className={className}>
-            {content}
-        </button>
-    )
-}
-
 function StatCard({
-                      title,
-                      value,
-                      icon,
-                      change,
-                  }: {
+    title,
+    value,
+    icon,
+    change,
+}: {
     title: string
     value: string
     icon: React.ReactNode
@@ -279,50 +304,26 @@ function StatCard({
 }
 
 function ActivityItem({
-                          title,
-                          description,
-                          time,
-                          color,
-                      }: {
+    title,
+    description,
+    time,
+    color,
+}: {
     title: string
     description: string
     time: string
     color: string
 }) {
     return (
-        <div className="flex items-start gap-4">
-            <div className={cn("mt-1 size-2 rounded-full", color)} />
-            <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium text-foreground">{title}</p>
-                <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="flex items-center gap-4 rounded-lg p-2 transition-colors hover:bg-muted/50">
+            <div className={cn("size-2 flex-shrink-0 rounded-full", color)} />
+            <div className="flex-1 space-y-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{title}</p>
+                <p className="text-xs text-muted-foreground truncate">{description}</p>
             </div>
-            <span className="text-xs text-muted-foreground">{time}</span>
+            <span className="text-xs text-muted-foreground flex-shrink-0">{time}</span>
+            <ChevronRight className="size-4 text-muted-foreground opacity-50" />
         </div>
-    )
-}
-
-function QuickActionButton({ icon, label, href }: { icon: React.ReactNode; label: string; href?: string }) {
-    const content = (
-        <div className="flex w-full items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">{icon}</div>
-            <span className="font-medium text-foreground">{label}</span>
-        </div>
-    )
-
-    if (href) {
-        return (
-            <Link href={href} className="block">
-                <Button variant="outline" className="w-full justify-start gap-3 text-foreground bg-transparent hover:bg-muted/70 transition-colors" size="lg">
-                    {content}
-                </Button>
-            </Link>
-        )
-    }
-
-    return (
-        <Button variant="outline" className="w-full justify-start gap-3 text-foreground bg-transparent hover:bg-muted/70 transition-colors" size="lg">
-            {content}
-        </Button>
     )
 }
 
