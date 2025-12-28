@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://briefly-backend-production-277d.up.railway.app/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -49,20 +49,20 @@ class ApiClient {
       console.log(`[API] Fetching CSRF token from ${this.baseURL}/csrf-token`);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
+
       const response = await fetch(`${this.baseURL}/csrf-token`, {
         method: 'GET',
         credentials: 'include',
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         console.error(`[API] CSRF token fetch failed: ${response.status} ${response.statusText}`);
         return;
       }
-      
+
       const data = await response.json();
       if (data.success && data.data?.csrfToken) {
         this.csrfToken = data.data.csrfToken;
@@ -94,12 +94,12 @@ class ApiClient {
     retryCount = 0,
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
-    
+
     // Get CSRF token for state-changing requests
     const method = options.method || 'GET';
     const needsCsrf = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
     const csrfToken = needsCsrf ? await this.getCsrfToken() : null;
-    
+
     // Tokens are in httpOnly cookies, so browser sends them automatically
     // No need to manually add Authorization header
     const headers: HeadersInit = {
@@ -107,7 +107,7 @@ class ApiClient {
       ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
       ...options.headers,
     };
-    
+
     const config: RequestInit = {
       ...options,
       credentials: 'include', // Important: sends cookies with request
@@ -120,20 +120,20 @@ class ApiClient {
       // Add timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
+
       const response = await fetch(url, {
         ...config,
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       console.log(`[API] Response status: ${response.status} for ${url}`);
-      
+
       // Check if response is JSON before parsing
       const contentType = response.headers.get('content-type');
       let data;
-      
+
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
       } else {
@@ -203,7 +203,7 @@ class ApiClient {
       };
     } catch (error) {
       console.error(`[API] Request failed for ${url}:`, error);
-      
+
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           return {
@@ -216,7 +216,7 @@ class ApiClient {
           error: error.message || 'Network error occurred',
         };
       }
-      
+
       return {
         success: false,
         error: 'Network error occurred',
