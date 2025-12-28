@@ -6,7 +6,7 @@ import { UpdateQuizSetDto } from './dto/update-quiz-set.dto';
 
 @Injectable()
 export class QuizSetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(userId: string, createDto: CreateQuizSetDto) {
     return this.prisma.quizSet.create({
@@ -114,6 +114,27 @@ export class QuizSetsService {
     });
 
     return { success: true, message: 'Quiz set deleted successfully' };
+  }
+
+  async moveToFolder(userId: string, id: string, folderId: string | null) {
+    // Verify ownership
+    await this.findOne(userId, id);
+
+    // If folderId is provided, verify folder exists and belongs to user
+    if (folderId) {
+      const folder = await this.prisma.folder.findFirst({
+        where: { id: folderId, userId },
+      });
+
+      if (!folder) {
+        throw new NotFoundException('Folder not found');
+      }
+    }
+
+    return this.prisma.quizSet.update({
+      where: { id },
+      data: { folderId },
+    });
   }
 }
 

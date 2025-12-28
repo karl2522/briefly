@@ -465,6 +465,13 @@ class ApiClient {
     });
   }
 
+  async moveQuizSetToFolder(setId: string, folderId: string | null): Promise<ApiResponse<any>> {
+    return this.request<any>(`/quiz-sets/${setId}/folder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ folderId }),
+    });
+  }
+
   // Study Guides endpoints
   async getStudyGuides(): Promise<ApiResponse<any[]>> {
     return this.request<any[]>('/study-guides', {

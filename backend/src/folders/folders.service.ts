@@ -12,7 +12,10 @@ export class FoldersService {
             where: { userId },
             include: {
                 _count: {
-                    select: { flashcardSets: true },
+                    select: {
+                        flashcardSets: true,
+                        quizSets: true
+                    },
                 },
             },
             orderBy: { createdAt: 'desc' },
@@ -23,6 +26,7 @@ export class FoldersService {
             name: folder.name,
             color: folder.color,
             flashcardCount: folder._count.flashcardSets,
+            quizCount: folder._count.quizSets,
             createdAt: folder.createdAt,
             updatedAt: folder.updatedAt,
         }));
@@ -33,7 +37,10 @@ export class FoldersService {
             where: { id, userId },
             include: {
                 _count: {
-                    select: { flashcardSets: true },
+                    select: {
+                        flashcardSets: true,
+                        quizSets: true
+                    },
                 },
             },
         });
@@ -47,6 +54,7 @@ export class FoldersService {
             name: folder.name,
             color: folder.color,
             flashcardCount: folder._count.flashcardSets,
+            quizCount: folder._count.quizSets,
             createdAt: folder.createdAt,
             updatedAt: folder.updatedAt,
         };

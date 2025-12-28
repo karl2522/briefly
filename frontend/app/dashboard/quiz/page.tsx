@@ -9,10 +9,18 @@ import {
     DialogDescription,
     DialogFooter,
     DialogHeader,
-    DialogTitle,
+    DialogTitle
 } from "@/components/ui/dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { apiClient } from "@/lib/api"
-import { AlertCircle, BookOpen, Calendar, Check, ChevronRight, FileText, Loader2, Sparkles, Target, Trash2, Upload, X } from "lucide-react"
+import { AlertCircle, BookOpen, Calendar, Check, ChevronRight, FileText, Folder, FolderPlus, Loader2, MoreVertical, Sparkles, Target, Trash2, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
@@ -30,6 +38,16 @@ interface QuizSet {
     quiz: QuizQuestion[]
     numberOfQuestions: number
     difficulty: "easy" | "medium" | "hard"
+    createdAt: string
+    folderId?: string | null
+}
+
+interface FolderType {
+    id: string
+    name: string
+    color: string | null
+    flashcardCount: number
+    quizCount: number
     createdAt: string
 }
 
@@ -49,6 +67,15 @@ export default function QuizPage() {
     const [setToDelete, setSetToDelete] = useState<string | null>(null)
     const [isDeleting, setIsDeleting] = useState(false)
     const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
+
+    // Folder state
+    const [folders, setFolders] = useState<FolderType[]>([])
+    const [isLoadingFolders, setIsLoadingFolders] = useState(true)
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+    const [newFolderName, setNewFolderName] = useState("")
+    const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
+    const [isDeletingFolder, setIsDeletingFolder] = useState(false)
 
     const showToast = (message: string, type: 'success' | 'error') => {
         setToast({ message, type })
@@ -70,6 +97,7 @@ export default function QuizPage() {
                         numberOfQuestions: set.numberOfQuestions,
                         difficulty: set.difficulty,
                         createdAt: set.createdAt,
+                        folderId: set.folderId
                     }))
                     setSavedQuizzes(quizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
                 } else {
@@ -83,6 +111,102 @@ export default function QuizPage() {
         }
         loadQuizSets()
     }, [])
+
+    // Load folders
+    useEffect(() => {
+        const loadFolders = async () => {
+            setIsLoadingFolders(true)
+            try {
+                const response = await apiClient.getFolders()
+                if (response.success && response.data) {
+                    setFolders(response.data)
+                }
+            } catch (err) {
+                console.error("Error loading folders:", err)
+            } finally {
+                setIsLoadingFolders(false)
+            }
+        }
+        loadFolders()
+    }, [])
+
+    const handleCreateFolder = async () => {
+        if (!newFolderName.trim()) return
+
+        try {
+            const response = await apiClient.createFolder({ name: newFolderName })
+            if (response.success && response.data) {
+                setFolders([response.data, ...folders])
+                setNewFolderName("")
+                setIsCreatingFolder(false)
+                showToast("Folder created successfully", "success")
+            } else {
+                showToast(response.error || "Failed to create folder", "error")
+            }
+        } catch (err) {
+            console.error("Error creating folder:", err)
+            showToast("An error occurred", "error")
+        }
+    }
+
+    const confirmDeleteFolder = async () => {
+        if (!folderToDelete) return
+
+        setIsDeletingFolder(true)
+        try {
+            const response = await apiClient.deleteFolder(folderToDelete)
+            if (response.success) {
+                setFolders(folders.filter(f => f.id !== folderToDelete))
+                if (selectedFolderId === folderToDelete) setSelectedFolderId(null)
+                setFolderToDelete(null)
+                showToast("Folder deleted successfully", "success")
+            } else {
+                showToast(response.error || "Failed to delete folder", "error")
+            }
+        } catch (err) {
+            console.error("Error deleting folder:", err)
+            showToast("An error occurred", "error")
+        } finally {
+            setIsDeletingFolder(false)
+        }
+    }
+
+    const handleMoveToFolder = async (quizSetId: string, folderId: string | null) => {
+        try {
+            const response = await apiClient.moveQuizSetToFolder(quizSetId, folderId)
+            if (response.success) {
+                // Update local state
+                setSavedQuizzes(savedQuizzes.map(q =>
+                    q.id === quizSetId ? { ...q, folderId } : q
+                ))
+
+                // Update folder counts
+                const oldFolderId = savedQuizzes.find(q => q.id === quizSetId)?.folderId
+
+                setFolders(folders.map(f => {
+                    if (f.id === folderId) {
+                        return { ...f, quizCount: f.quizCount + 1 }
+                    }
+                    if (f.id === oldFolderId) {
+                        return { ...f, quizCount: Math.max(0, f.quizCount - 1) }
+                    }
+                    return f
+                }))
+
+                showToast("Quiz moved successfully", "success")
+            } else {
+                showToast(response.error || "Failed to move quiz", "error")
+            }
+        } catch (err) {
+            console.error("Error moving quiz:", err)
+            showToast("An error occurred", "error")
+        }
+    }
+
+    // Filter quizzes based on selected folder
+    const filteredQuizzes = selectedFolderId
+        ? savedQuizzes.filter(q => q.folderId === selectedFolderId)
+        : savedQuizzes
 
     const handleDeleteClick = (e: React.MouseEvent, id: string) => {
         e.stopPropagation()
@@ -310,11 +434,22 @@ export default function QuizPage() {
     return (
         <DashboardLayout title="Quiz Generator">
             <div className="mb-6">
-                <div className="mb-2 flex items-center gap-2">
-                    <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                        <Target className="size-5" />
+                <div className="mb-2 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                            <Target className="size-5" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-foreground sm:text-3xl">Quiz Generator</h2>
                     </div>
-                    <h2 className="text-2xl font-bold text-foreground sm:text-3xl">Quiz Generator</h2>
+                    <Button
+                        onClick={() => setIsCreatingFolder(true)}
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                    >
+                        <FolderPlus className="size-4" />
+                        Create Folder
+                    </Button>
                 </div>
                 <p className="text-muted-foreground">Test your knowledge with AI-generated quiz questions</p>
             </div>
@@ -346,8 +481,8 @@ export default function QuizPage() {
                                     <label
                                         htmlFor="file-upload"
                                         className={`flex items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed px-4 py-3 text-sm transition-colors cursor-pointer ${isProcessingFile
-                                                ? "border-muted bg-muted cursor-not-allowed"
-                                                : "border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/10"
+                                            ? "border-muted bg-muted cursor-not-allowed"
+                                            : "border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/10"
                                             }`}
                                     >
                                         {isProcessingFile ? (
@@ -473,50 +608,115 @@ export default function QuizPage() {
                 {/* Saved Quizzes List */}
                 <Card className="flex flex-col h-[650px]">
                     <CardHeader className="flex-shrink-0">
-                        <CardTitle>Saved Quizzes</CardTitle>
-                        <CardDescription>Your saved quiz collections</CardDescription>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle>
+                                    {selectedFolderId
+                                        ? `Quizzes in ${folders.find(f => f.id === selectedFolderId)?.name}`
+                                        : "Saved Quizzes"
+                                    }
+                                </CardTitle>
+                                <CardDescription>Your saved quiz collections</CardDescription>
+                            </div>
+                            {selectedFolderId && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedFolderId(null)}
+                                >
+                                    View All
+                                </Button>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
                         <div className="space-y-2 flex-1 overflow-y-auto pr-2">
                             {isLoadingQuizzes ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center">
                                     <Loader2 className="mb-4 size-8 animate-spin text-primary" />
-                                    <h3 className="mb-2 text-lg font-semibold text-foreground">Loading quiz sets...</h3>
+                                    <h3 className="mb-2 text-lg font-semibold text-foreground">Loading quizzes...</h3>
                                     <p className="text-sm text-muted-foreground">Please wait</p>
                                 </div>
-                            ) : savedQuizzes.length > 0 ? (
-                                savedQuizzes.map((quizSet) => (
+                            ) : filteredQuizzes.length > 0 ? (
+                                filteredQuizzes.map((set) => (
                                     <div
-                                        key={quizSet.id}
-                                        onClick={() => handleViewQuiz(quizSet.id)}
+                                        key={set.id}
+                                        onClick={() => handleViewQuiz(set.id)}
                                         className="w-full text-left rounded-lg border border-border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all p-4 group cursor-pointer relative"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <Target className="size-4 text-primary flex-shrink-0" />
-                                                    <h3 className="font-semibold text-foreground break-words group-hover:text-primary transition-colors">{quizSet.topic}</h3>
+                                                    <BookOpen className="size-4 text-primary flex-shrink-0" />
+                                                    <h3 className="font-semibold text-foreground break-words group-hover:text-primary transition-colors">{set.topic}</h3>
                                                 </div>
                                                 <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4 text-xs text-muted-foreground">
                                                     <span className="flex items-center gap-1.5">
-                                                        <BookOpen className="size-3 shrink-0" />
-                                                        <span>{quizSet.quiz.length} questions</span>
+                                                        <Target className="size-3 shrink-0" />
+                                                        <span>{set.numberOfQuestions} questions</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className={`size-2 rounded-full ${set.difficulty === 'easy' ? 'bg-green-500' : set.difficulty === 'medium' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                                                        <span className="capitalize">{set.difficulty}</span>
                                                     </span>
                                                     <span className="flex items-center gap-1.5">
                                                         <Calendar className="size-3 shrink-0" />
-                                                        <span>{formatDate(quizSet.createdAt)}</span>
+                                                        <span>{formatDate(set.createdAt)}</span>
                                                     </span>
-                                                    <span className="capitalize">{quizSet.difficulty}</span>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={(e) => handleDeleteClick(e, quizSet.id)}
-                                                    className="p-2 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all cursor-pointer"
-                                                    title="Delete set"
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </button>
+                                            <div className="flex items-center gap-1">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={e => e.stopPropagation()}>
+                                                            <MoreVertical className="size-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-48">
+                                                        {folders.length > 0 && (
+                                                            <>
+                                                                <DropdownMenuLabel>Move to Folder</DropdownMenuLabel>
+                                                                <DropdownMenuSeparator />
+                                                                {set.folderId && (
+                                                                    <DropdownMenuItem onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleMoveToFolder(set.id, null)
+                                                                    }}>
+                                                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                                                            <X className="size-4" />
+                                                                            <span>Remove from Folder</span>
+                                                                        </div>
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                {folders.map(folder => (
+                                                                    <DropdownMenuItem
+                                                                        key={folder.id}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation()
+                                                                            handleMoveToFolder(set.id, folder.id)
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="size-2 rounded-full bg-primary" />
+                                                                            <span className="truncate">{folder.name}</span>
+                                                                            {set.folderId === folder.id && <Check className="ml-auto size-4" />}
+                                                                        </div>
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                                <DropdownMenuSeparator />
+                                                            </>
+                                                        )}
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                                            onClick={(e) => handleDeleteClick(e, set.id)}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <Trash2 className="size-4" />
+                                                                <span>Delete</span>
+                                                            </div>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                                 <ChevronRight className="size-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                                             </div>
                                         </div>
@@ -527,14 +727,166 @@ export default function QuizPage() {
                                     <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10">
                                         <Target className="size-8 text-primary" />
                                     </div>
-                                    <h3 className="mb-2 text-lg font-semibold text-foreground">No saved quizzes yet</h3>
-                                    <p className="text-sm text-muted-foreground">Generate quizzes and save them to see them here</p>
+                                    <h3 className="mb-2 text-lg font-semibold text-foreground">
+                                        {selectedFolderId ? "No quizzes in this folder" : "No saved quizzes yet"}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {selectedFolderId
+                                            ? "Move quizzes here to organize them"
+                                            : "Generate a quiz and save it to see it here"
+                                        }
+                                    </p>
                                 </div>
                             )}
                         </div>
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Folders Section */}
+            <div className="mt-6">
+                <Card>
+                    <CardHeader>
+                        <div>
+                            <CardTitle>Folders</CardTitle>
+                            <CardDescription>Organize your quizzes</CardDescription>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingFolders ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="size-6 animate-spin text-primary" />
+                            </div>
+                        ) : folders.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10">
+                                    <Folder className="size-8 text-primary" />
+                                </div>
+                                <h3 className="mb-2 text-lg font-semibold text-foreground">No folders yet</h3>
+                                <p className="text-sm text-muted-foreground mb-4">Create folders to organize your quizzes</p>
+                                <Button
+                                    onClick={() => setIsCreatingFolder(true)}
+                                    size="sm"
+                                    className="gap-2"
+                                >
+                                    <FolderPlus className="size-4" />
+                                    Create Your First Folder
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {folders.map((folder) => (
+                                    <div
+                                        key={folder.id}
+                                        onClick={() => setSelectedFolderId(selectedFolderId === folder.id ? null : folder.id)}
+                                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all group ${selectedFolderId === folder.id
+                                            ? "border-primary bg-primary/5"
+                                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <Folder
+                                                className="size-5"
+                                                style={{ color: folder.color || "#6366f1" }}
+                                            />
+                                            <span className="font-medium">{folder.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-muted-foreground">
+                                                {folder.quizCount || 0}
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setFolderToDelete(folder.id)
+                                                }}
+                                                className="p-2 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+                                                title="Delete folder"
+                                            >
+                                                <Trash2 className="size-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Dialog open={isCreatingFolder} onOpenChange={setIsCreatingFolder}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Folder</DialogTitle>
+                        <DialogDescription>
+                            Create a folder to organize your quizzes.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <label className="mb-2 block text-sm font-medium">Folder Name</label>
+                        <input
+                            type="text"
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            placeholder="e.g., Biology, Math, History"
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newFolderName.trim()) {
+                                    handleCreateFolder()
+                                }
+                            }}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsCreatingFolder(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleCreateFolder}
+                            disabled={!newFolderName.trim()}
+                        >
+                            Create Folder
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!folderToDelete} onOpenChange={(open) => !open && setFolderToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Folder</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this folder? The quizzes inside will be moved to "Uncategorized".
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setFolderToDelete(null)}
+                            disabled={isDeletingFolder}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={confirmDeleteFolder}
+                            disabled={isDeletingFolder}
+                        >
+                            {isDeletingFolder ? (
+                                <>
+                                    <Loader2 className="mr-2 size-4 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                "Delete"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={!!setToDelete} onOpenChange={(open) => !open && setSetToDelete(null)}>
                 <DialogContent>

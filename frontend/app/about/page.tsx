@@ -172,25 +172,25 @@ export default function AboutPage() {
                     </div>
                 </section>
 
-                {/* CTA Section */}
+                {/* Developer Section */}
                 <section className="py-16 px-4 sm:px-6 lg:px-8">
                     <div className="container mx-auto max-w-4xl">
                         <div className="text-center p-8 sm:p-12 rounded-2xl border border-border bg-gradient-to-br from-primary/5 to-accent/5">
                             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                                Ready to Transform Your Learning?
+                                Developer
                             </h2>
+                            <h3 className="text-2xl font-semibold text-primary mb-6">
+                                Jared Omen
+                            </h3>
                             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                                Join thousands of students who are already using Briefly to study smarter, not harder.
+                                A full stack developer building full-scale web apps with AI integrations.
+                                Specialized in creating modern, responsive, and intelligent applications.
+                                If you're interested in collaborating or want to see more of my work, visit my portfolio.
                             </p>
-                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                <Link href="/sign-up">
+                            <div className="flex justify-center">
+                                <Link href="https://jaredomen.com" target="_blank" rel="noopener noreferrer">
                                     <button className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors">
-                                        Get Started Free
-                                    </button>
-                                </Link>
-                                <Link href="/sign-in">
-                                    <button className="px-6 py-3 rounded-lg border border-border bg-background text-foreground font-medium hover:bg-accent/10 transition-colors">
-                                        Sign In
+                                        Visit Portfolio
                                     </button>
                                 </Link>
                             </div>

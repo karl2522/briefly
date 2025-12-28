@@ -90,14 +90,17 @@ model QuizSet {
   topic             String
   numberOfQuestions Int
   difficulty        String // "easy" | "medium" | "hard"
+  folderId          String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   questions QuizQuestion[]
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([folderId])
   @@index([createdAt])
   @@map("quiz_sets")
 }
@@ -161,6 +164,7 @@ model Folder {
   updatedAt DateTime @updatedAt
 
   flashcardSets FlashcardSet[]
+  quizSets      QuizSet[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
