@@ -6,7 +6,6 @@
 
 **Transform how you learn with AI-powered study tools built for students**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -363,86 +362,6 @@ npx prisma generate
 npx prisma studio
 ```
 
----
-
-## 🚀 Deployment
-
-### Production Environment Variables
-
-Create `.env` files in both backend and frontend directories:
-
-#### Backend `.env`
-```env
-NODE_ENV=production
-PORT=3001
-FRONTEND_URL=https://yourdomain.com
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-JWT_SECRET=your_jwt_secret
-JWT_REFRESH_SECRET=your_refresh_secret
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
-GEMINI_API_KEY=your_gemini_api_key
-```
-
-#### Frontend `.env.local`
-```env
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-```
-
-### Recommended Deployment
-
-#### Option 1: Railway (Backend) + Vercel (Frontend)
-1. **Backend**: Connect to Railway and deploy
-2. **Frontend**: Connect to Vercel and deploy
-3. **Database**: Use Railway's PostgreSQL or external provider
-
-#### Option 2: Docker Deployment
-```bash
-# Build Docker images
-docker build -t briefly-backend ./backend
-docker build -t briefly-frontend ./frontend
-
-# Run containers
-docker-compose up -d
-```
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
-
-### Development Guidelines
-
-- Follow TypeScript best practices
-- Write meaningful commit messages
-- Add tests for new features
-- Update documentation as needed
-- Ensure code passes linting
-
-### Code Quality
-
-- **Linting**: ESLint configuration
-- **Testing**: Jest for unit and integration tests
-- **Type Safety**: Full TypeScript coverage
-- **Code Style**: Prettier formatting
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🙏 Acknowledgments
 
 - **Developed by**: Jared Omen
@@ -453,18 +372,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Support & Contact
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/briefly/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/briefly/discussions)
-- **Email**: support@briefly.ai
-
----
 
 <div align="center">
 
 **Made with ❤️ for students worldwide**
-
-[⭐ Star this repo](https://github.com/yourusername/briefly) • [🐛 Report a bug](https://github.com/yourusername/briefly/issues) • [💡 Request a feature](https://github.com/yourusername/briefly/issues)
 
 </div>
