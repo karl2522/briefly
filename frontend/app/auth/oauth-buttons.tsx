@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import type React from "react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://briefly-backend-production-277d.up.railway.app/api';
 
 const iconBase =
     "h-5 w-5"
@@ -55,7 +55,7 @@ export function OAuthButtons({ onClick, mode = "signin" }: OAuthButtonsProps) {
 
         // Redirect to OAuth endpoint with mode as query parameter
         const endpoint = `${API_BASE_URL}/auth/${provider}?mode=${mode}`;
-
+        
         window.location.href = endpoint;
     };
 
